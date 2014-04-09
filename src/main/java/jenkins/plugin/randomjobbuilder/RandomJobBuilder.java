@@ -54,6 +54,7 @@ public class RandomJobBuilder extends AbstractDescribableImpl<RandomJobBuilder> 
     @Extension
     public static class PeriodicWorkImpl extends PeriodicWork {
 
+        private static final long ONE_SECOND_IN_MILLIS = TimeUnit.SECONDS.toMillis(1);
         private final Random entropy = new Random();
 
         private long lastTime = System.currentTimeMillis();
@@ -67,17 +68,16 @@ public class RandomJobBuilder extends AbstractDescribableImpl<RandomJobBuilder> 
         protected void doRun() throws Exception {
             DescriptorImpl d = Jenkins.getInstance().getDescriptorByType(DescriptorImpl.class);
             if (d.getBuildsPerMin() <= 0) {
+                lastTime = System.currentTimeMillis();
                 return;
             }
-            long elapsed = TimeUnit2.MILLISECONDS.toSeconds(System.currentTimeMillis() - lastTime);
-            lastTime = System.currentTimeMillis();
-            for (; elapsed >= 0; elapsed--) {
+            for (; lastTime < System.currentTimeMillis(); lastTime += ONE_SECOND_IN_MILLIS) {
                 double buildsPerSec = d.getBuildsPerMin() / TimeUnit.MINUTES.toSeconds(1);
                 while (buildsPerSec >= 1.0) {
                     startBuild();
                     buildsPerSec--;
                 }
-                if (entropy.nextDouble() < buildsPerSec) {
+                if (entropy.nextDouble() <= buildsPerSec) {
                     startBuild();
                 }
             }

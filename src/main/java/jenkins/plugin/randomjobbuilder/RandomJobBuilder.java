@@ -9,7 +9,6 @@ import hudson.model.ItemGroup;
 import hudson.model.PeriodicWork;
 import hudson.model.Project;
 import hudson.security.ACL;
-import hudson.util.TimeUnit2;
 import jenkins.model.Jenkins;
 import net.sf.json.JSONObject;
 import org.acegisecurity.context.SecurityContext;
@@ -45,9 +44,13 @@ public class RandomJobBuilder extends AbstractDescribableImpl<RandomJobBuilder> 
 
         @Override
         public boolean configure(StaplerRequest req, JSONObject json) throws FormException {
-            buildsPerMin = json.optDouble("buildsPerMin", 0.0);
-            save();
+            setBuildsPerMin(json.optDouble("buildsPerMin", 0.0));
             return true;
+        }
+
+        public void setBuildsPerMin(double buildsPerMinute) {
+            this.buildsPerMin = Math.max(0.0, Math.min(buildsPerMinute, 10000));
+            save();
         }
     }
 

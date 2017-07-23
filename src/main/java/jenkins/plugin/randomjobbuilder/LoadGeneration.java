@@ -7,6 +7,7 @@ import hudson.model.Job;
 import hudson.util.ListBoxModel;
 import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.StaplerRequest;
 
 import javax.annotation.CheckForNull;
@@ -18,6 +19,26 @@ import java.util.List;
  * Configurable load generator that runs jobs
  */
 public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
+
+    @Extension
+    public static class DescriptorImpl extends Descriptor<LoadGeneration> {
+
+        List<LoadGenerator> loadGenerators = new ArrayList<LoadGenerator>();
+
+        public List<LoadGenerator> getLoadGenerators() {
+            return Collections.unmodifiableList(loadGenerators);
+        }
+
+        public void setLoadGenerators(List<LoadGenerator> loadGenerators) {
+            this.loadGenerators.clear();
+            this.loadGenerators.addAll(loadGenerators);
+        }
+
+        public String getDisplayName() {
+            return "Load Generation";
+        }
+    }
+
     static class LoadGenerator extends AbstractDescribableImpl<LoadGenerator> {
         private String jobNameFilter = null;
 
@@ -107,27 +128,6 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             public String getDisplayName() {
                 return "Load Generation";
             }
-        }
-    }
-
-
-
-    @Extension
-    public static class DescriptorImpl extends Descriptor<LoadGeneration> {
-
-        List<LoadGenerator> loadGenerators = new ArrayList<LoadGenerator>();
-
-        public List<LoadGenerator> getLoadGenerators() {
-            return Collections.unmodifiableList(loadGenerators);
-        }
-
-        public void setLoadGenerators(List<LoadGenerator> loadGenerators) {
-            this.loadGenerators.clear();
-            this.loadGenerators.addAll(loadGenerators);
-        }
-
-        public String getDisplayName() {
-            return "Load Generation";
         }
     }
 }

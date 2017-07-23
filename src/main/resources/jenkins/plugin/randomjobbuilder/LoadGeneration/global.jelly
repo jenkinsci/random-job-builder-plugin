@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form" xmlns:local="local">
-    <!--<f:section title="${descriptor.displayName}">
-        <f:repeatableHeteroProperty field="loadGenerators" hasHeader="true"></f:repeatableHeteroProperty>
-    </f:section>-->
-    <p>Stuff</p>
+    <f:section title="${descriptor.displayName}">
+        <f:block>
+            <f:repeatableHeteroProperty field="loadGenerators" hasHeader="false"></f:repeatableHeteroProperty>
+        </f:block>
+    </f:section>
 </j:jelly>

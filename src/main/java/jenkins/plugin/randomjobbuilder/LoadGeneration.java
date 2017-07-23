@@ -4,19 +4,15 @@ import hudson.Extension;
 import hudson.model.AbstractDescribableImpl;
 import hudson.model.Descriptor;
 import hudson.model.Job;
+import hudson.model.Run;
 import hudson.util.DescribableList;
-import hudson.util.ListBoxModel;
-import jenkins.model.ArtifactManagerFactoryDescriptor;
 import jenkins.model.Jenkins;
 import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
-import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.StaplerRequest;
 
 import javax.annotation.CheckForNull;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -27,9 +23,9 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
     @Extension
     public static class DescriptorImpl extends Descriptor<LoadGeneration> {
 
-        private DescribableList<LoadGenerator, LoadGenerator.DescriptorImpl> loadGenerators = new DescribableList<LoadGenerator, LoadGenerator.DescriptorImpl>(this);
+        private DescribableList<LoadGenerator, LoadGenerator.DescriptorBase> loadGenerators = new DescribableList<LoadGenerator, LoadGenerator.DescriptorBase>(this);
 
-        public DescribableList<LoadGenerator, LoadGenerator.DescriptorImpl> getLoadGenerators() {
+        public DescribableList<LoadGenerator, LoadGenerator.DescriptorBase> getLoadGenerators() {
             return loadGenerators;
         }
 
@@ -40,8 +36,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         @Override
         public boolean configure(StaplerRequest req, JSONObject json) throws FormException {
             try {
-                // FIXME can't find the descriptor, throws exceptions
-                loadGenerators.rebuildHetero(req, json, Jenkins.getActiveInstance().getExtensionList(LoadGeneration.LoadGenerator.DescriptorImpl.class), "loadGenerators");
+                loadGenerators.rebuildHetero(req, json, Jenkins.getActiveInstance().getExtensionList(LoadGenerator.DescriptorBase.class), "loadGenerators");
                 save();
             } catch (IOException ioe) {
                 throw new RuntimeException("Something failed horribly around descriptors", ioe);
@@ -54,10 +49,39 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         }
     }
 
+    public enum CurrentTestMode {
+        IDLE,
+        RAMP_UP,
+        LOAD, // active at full load
+        SHUT_DOWN
+    }
+
+    /** Base for all load generators that run jobs */
+    public static abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerator> {
+
+        public abstract List<Run> getAllRunningLoad();
+
+        public abstract List<Run> getAllQueuedLoad();
+
+        public abstract CurrentTestMode getTestMode();
+
+        public abstract List<Job> getCandidateJobs();
+
+        /** Descriptors neeed to extend this */
+        @Extension
+        public static class DescriptorBase extends Descriptor<LoadGenerator> {
+
+            @Override
+            public String getDisplayName() {
+                return "";
+            }
+        }
+    }
+
     // TODO refactor into constant rate impl and constant concurrency level
     // TODO multiple implementations, i.e. constant-rate build
     // Constant queue loading/parallel loading, etc
-    public static class LoadGenerator extends AbstractDescribableImpl<LoadGenerator> {
+    public static class BellsAndWhistlesLoadGenerator extends LoadGenerator {
         private String jobNameFilter = null;
 
         private double desiredCount = 0.0;
@@ -67,8 +91,6 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         private long shutDownTimeoutMillis;
 
         private Class<? extends Job> jobType;
-
-        private LoadTestMode myMode = null;
 
         public String getJobNameFilter() {
             return jobNameFilter;
@@ -113,36 +135,36 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             this.jobType = jobType;
         }
 
-        public LoadTestMode getMyMode() {
-            return myMode;
-        }
-
-        public void setMyMode(LoadTestMode myMode) {
-            this.myMode = myMode;
-        }
-
-        public enum LoadTestMode {
-            CONTINUOUS_RUN_RATE,
-            MAINTAIN_RUN_COUNT
-        };
-
-        public enum CurrentTestMode {
-            IDLE,
-            RAMP_UP,
-            LOAD,
-            SHUT_DOWN
-        }
-
         @DataBoundConstructor
-        public LoadGenerator(@CheckForNull String jobNameFilter, double desiredCount, long rampUpTimeMillis, long shutDownTimeoutMillis) {
+        public BellsAndWhistlesLoadGenerator(@CheckForNull String jobNameFilter, double desiredCount, long rampUpTimeMillis, long shutDownTimeoutMillis) {
             setJobNameFilter(jobNameFilter);
             setDesiredCount(desiredCount);
             setRampUpTimeMillis(rampUpTimeMillis);
             setShutDownTimeoutMillis(shutDownTimeoutMillis);
         }
 
+        @Override
+        public List<Run> getAllRunningLoad() {
+            return null;
+        }
+
+        @Override
+        public List<Run> getAllQueuedLoad() {
+            return null;
+        }
+
+        @Override
+        public CurrentTestMode getTestMode() {
+            return null;
+        }
+
+        @Override
+        public List<Job> getCandidateJobs() {
+            return null;
+        }
+
         @Extension
-        public static class DescriptorImpl extends Descriptor<LoadGenerator> {
+        public static class DescriptorImpl extends LoadGenerator.DescriptorBase {
             public String getDisplayName() {
                 return "Load Generation";
             }

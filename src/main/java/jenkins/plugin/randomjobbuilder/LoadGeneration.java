@@ -4,13 +4,17 @@ import hudson.Extension;
 import hudson.model.AbstractDescribableImpl;
 import hudson.model.Descriptor;
 import hudson.model.Job;
+import hudson.util.DescribableList;
 import hudson.util.ListBoxModel;
+import jenkins.model.ArtifactManagerFactoryDescriptor;
+import jenkins.model.Jenkins;
 import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.StaplerRequest;
 
 import javax.annotation.CheckForNull;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -23,23 +27,37 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
     @Extension
     public static class DescriptorImpl extends Descriptor<LoadGeneration> {
 
-        List<LoadGenerator> loadGenerators = new ArrayList<LoadGenerator>();
+        private DescribableList<LoadGenerator, LoadGenerator.DescriptorImpl> loadGenerators = new DescribableList<LoadGenerator, LoadGenerator.DescriptorImpl>(this);
 
-        public List<LoadGenerator> getLoadGenerators() {
-            return Collections.unmodifiableList(loadGenerators);
-        }
-
-        public void setLoadGenerators(List<LoadGenerator> loadGenerators) {
-            this.loadGenerators.clear();
-            this.loadGenerators.addAll(loadGenerators);
+        public DescribableList<LoadGenerator, LoadGenerator.DescriptorImpl> getLoadGenerators() {
+            return loadGenerators;
         }
 
         public String getDisplayName() {
             return "Load Generation";
         }
+
+        @Override
+        public boolean configure(StaplerRequest req, JSONObject json) throws FormException {
+            try {
+                // FIXME can't find the descriptor, throws exceptions
+                loadGenerators.rebuildHetero(req, json, Jenkins.getActiveInstance().getExtensionList(LoadGeneration.LoadGenerator.DescriptorImpl.class), "loadGenerators");
+                save();
+            } catch (IOException ioe) {
+                throw new RuntimeException("Something failed horribly around descriptors", ioe);
+            }
+            return true;
+        }
+
+        public DescriptorImpl() {
+            load();
+        }
     }
 
-    static class LoadGenerator extends AbstractDescribableImpl<LoadGenerator> {
+    // TODO refactor into constant rate impl and constant concurrency level
+    // TODO multiple implementations, i.e. constant-rate build
+    // Constant queue loading/parallel loading, etc
+    public static class LoadGenerator extends AbstractDescribableImpl<LoadGenerator> {
         private String jobNameFilter = null;
 
         private double desiredCount = 0.0;

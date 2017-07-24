@@ -54,6 +54,10 @@
       <id>stephenconnolly</id>
       <name>Stephen Connolly</name>
     </developer>
+    <developer>
+      <id>svanoort</id>
+      <name>Sam Van Oort</name>
+    </developer>
   </developers>
 
   <prerequisites>
@@ -68,7 +72,7 @@
   </scm>
 
   <properties>
-    <jenkins.version>1.609.1</jenkins.version>
+    <jenkins.version>1.651.3</jenkins.version>
     <java.level>7</java.level>
   </properties>
 

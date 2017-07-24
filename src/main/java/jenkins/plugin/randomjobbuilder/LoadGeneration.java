@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
@@ -47,6 +48,17 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             return "Load Generation";
         }
 
+        /** Find generator by its unique ID or return null */
+        @CheckForNull
+        public LoadGenerator getGeneratorbyId(@Nonnull String generatorId) {
+            for (LoadGenerator lg : loadGenerators) {
+                if (lg.getGeneratorId().equals(generatorId)) {
+                    return lg;
+                }
+            }
+            return null;
+        }
+
         @Override
         public boolean configure(StaplerRequest req, JSONObject json) throws FormException {
             try {
@@ -66,22 +78,30 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
     public enum CurrentTestMode {
         IDLE,
         RAMP_UP,
-        LOAD, // active at full load
+        LOAD_TEST, // active at full load
         RAMP_DOWN
     }
 
     public static class LoadGeneratorCause extends Cause {
-        final LoadGenerator generator;
+        final String generatorId;
+        final String generatorType;
 
         public LoadGeneratorCause(@Nonnull LoadGenerator generator) {
-            this.generator = generator;
+            this.generatorId = generator.generatorId;
+            this.generatorType = generator.getClass().getName();
         }
 
-        public LoadGenerator getGenerator(){return generator;}
+        public String getGeneratorId(){
+            return generatorId;
+        }
+
+        public String getGeneratorType(){
+            return generatorType;
+        }
 
         @Override
         public String getShortDescription() {
-            return "LoadGener   ator: "+generator.getClass().getSimpleName();
+            return "LoadGenerator "+getGeneratorType()+" ID: "+getGeneratorId();
         }
     }
 
@@ -172,6 +192,8 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
     /** Base for all load generators that run jobs */
     public static abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerator> {
+        /** Identifies the generator for causes */
+        protected String generatorId = UUID.randomUUID().toString();
 
         protected CurrentTestMode currentTestMode = CurrentTestMode.IDLE;
 
@@ -182,10 +204,14 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             return currentTestMode;
         }
 
+        public String getGeneratorId() {
+            return generatorId;
+        }
+
         public abstract List<Job> getCandidateJobs();
 
         /** Begin running load test and then switch to full load
-         *  @return {@link CurrentTestMode} phase as we transition to starting load test, i.e. LOAD or RAMP_UP
+         *  @return {@link CurrentTestMode} phase as we transition to starting load test, i.e. LOAD_TEST or RAMP_UP
          */
         public abstract CurrentTestMode start();
 
@@ -206,7 +232,6 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         }
     }
 
-
     /** Simple job runner that immediately starts them and keeps restarting then they finish or die */
     public static class TrivialLoadGenerator extends LoadGenerator {
 
@@ -221,7 +246,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
         @Override
         public CurrentTestMode start() {
-            return CurrentTestMode.LOAD;
+            return CurrentTestMode.LOAD_TEST;
         }
 
         @Override
@@ -339,7 +364,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
         @Override
         public CurrentTestMode stop() {
-            return CurrentTestMode.LOAD;
+            return CurrentTestMode.LOAD_TEST;
         }
 
         @Extension

@@ -4,7 +4,7 @@
     <f:entry field="jobNameFilter" title="${%Job name filter}">
         <f:textbox/>
     </f:entry>
-    <f:entry field="desiredCount" title="${%Desired Run Count}">
+    <f:entry field="desiredRunCount" title="${%Desired Run Count}">
         <f:number/>
     </f:entry>
     <f:entry field="rampUpTimeMillis" title="${%Ramp up time (ms)}">

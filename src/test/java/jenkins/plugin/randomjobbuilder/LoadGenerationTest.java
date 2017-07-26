@@ -1,9 +1,11 @@
 package jenkins.plugin.randomjobbuilder;
 
 import hudson.model.Job;
+import hudson.tasks.LogRotator;
 import jenkins.model.Jenkins;
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.jvnet.hudson.test.JenkinsRule;
@@ -75,5 +77,28 @@ public class LoadGenerationTest {
         assertEquals(LoadGeneration.CurrentTestMode.IDLE, testMode);
         assertEquals(LoadGeneration.CurrentTestMode.IDLE, trivial.getTestMode());
         assert !trivial.isActive();
+    }
+
+    @Test
+    public void testBasicGeneration() throws Exception {
+        WorkflowJob job = jenkinsRule.jenkins.createProject(WorkflowJob.class, "TrivialJob");
+        job.setBuildDiscarder(new LogRotator(-1, 20, -1, 40));
+        job.setDefinition(new CpsFlowDefinition("echo 'I did something' \n" +
+                "sleep 1"));
+        LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 1);
+        LoadGeneration.DescriptorImpl desc = LoadGeneration.getDescriptorInstance();
+        desc.addGenerator(trivial);
+
+        Jenkins j = jenkinsRule.getInstance();
+        trivial.start();
+
+        Thread.sleep(4000L);
+        System.out.println("Currently running jobs: "+j);
+        assertTrue("No jobs completed", job.getBuilds().size() > 0);
+
+        trivial.stop();
+        Thread.sleep(6000L);
+
+        Assert.assertFalse(job.getLastBuild().isBuilding());
     }
 }

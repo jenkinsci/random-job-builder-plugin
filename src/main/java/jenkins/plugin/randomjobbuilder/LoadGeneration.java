@@ -10,7 +10,9 @@ import hudson.model.Descriptor;
 import hudson.model.Executor;
 import hudson.model.Job;
 import hudson.model.PeriodicWork;
+import hudson.model.Queue;
 import hudson.model.Run;
+import hudson.model.TaskListener;
 import hudson.model.listeners.RunListener;
 import hudson.model.queue.QueueTaskFuture;
 import hudson.security.ACL;
@@ -36,7 +38,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 /**
@@ -138,7 +140,6 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         }
     }
 
-
     @CheckForNull
     static QueueTaskFuture<? extends Run> launchJob(@Nonnull LoadGenerator generator, @Nonnull Job job, int quietPeriod) {
         if (job instanceof ParameterizedJobMixIn.ParameterizedJob) {
@@ -221,6 +222,51 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         }
     }
 
+    static Collection<Queue.Item> getQueueItemsFromLoadGenerator(@Nonnull final LoadGenerator generator) {
+        SecurityContext old = null;
+        try {
+            old = ACL.impersonate(ACL.SYSTEM);
+            Queue myQueue = Jenkins.getActiveInstance().getQueue();
+            Queue.Item[] items = myQueue.getItems();
+            ArrayList<Queue.Item> output = new ArrayList<Queue.Item>();
+            for (Queue.Item it : items) {
+                List<Cause> causes = it.getCauses();
+                for (Cause c : causes) {
+                    if (c instanceof LoadGeneratorCause && generator.getGeneratorId().equals(((LoadGeneratorCause)c).getGeneratorId())) {
+                        output.add(it);
+                    }
+                }
+            }
+            return output;
+        } finally {
+            SecurityContextHolder.setContext(old);
+        }
+    }
+
+    static void cancelItems(Collection<Queue.Item> items) {
+        SecurityContext old = null;
+        try {
+            old = ACL.impersonate(ACL.SYSTEM);
+            Queue myQueue = Jenkins.getActiveInstance().getQueue();
+            for (Queue.Item it : items) {
+                myQueue.cancel(it);
+            }
+        } finally {
+            SecurityContextHolder.setContext(old);
+        }
+    }
+
+    /** Get the generator that triggered a run, or null if it wasn't triggered by one */
+    @CheckForNull
+    static LoadGenerator getGeneratorCause(@Nonnull Run run) {
+        Cause cause = run.getCause(LoadGeneratorCause.class);
+        if (cause != null) {
+            String generatorId = ((LoadGeneratorCause)cause).getGeneratorId();
+            return getDescriptorInstance().getGeneratorbyId(generatorId);
+        }
+        return null;
+    }
+
     /** Registers run for lookup, so we know which ones to kill if we stop load suddenly...
      *   or in which cases we need to start new jobs to maintain load level
      *
@@ -230,120 +276,134 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
      */
     @Extension
     public static class GeneratorController extends RunListener<Run> {
-        ConcurrentHashMap<Run, LoadGenerator> mapRunToGenerator = new ConcurrentHashMap<>();
+        ConcurrentHashMap<LoadGenerator, AtomicInteger> queueTaskCount = new ConcurrentHashMap<>();
+
+        /** Needed in order to cancel runs in progress */
         ConcurrentHashMap<LoadGenerator, Collection<Run>> generatorToRuns = new ConcurrentHashMap<>();
 
-        public void registerRun(@Nonnull Run run, @Nonnull LoadGenerator generator) {
+        public void addQueueItem(@Nonnull LoadGenerator generator) {
             synchronized (generator) {
-                mapRunToGenerator.put(run, generator);
-                Collection<Run> runList = generatorToRuns.get(generator);
-                if (runList != null) {
-                    runList.add(run);
+                AtomicInteger val = queueTaskCount.get(generator);
+                if (val != null) {
+                    val.incrementAndGet();
                 } else {
-                    HashSet<Run> set = new HashSet<Run>();
-                    set.add(run);
-                    generatorToRuns.put(generator, set);
+                    queueTaskCount.put(generator, new AtomicInteger(1));
                 }
             }
         }
 
-        /** Return number of new runs we need to schedule or 0 if none */
-        int scheduleMoreCount(@Nonnull LoadGenerator gen) {
-            if (gen.getTestMode() == CurrentTestMode.IDLE || gen.getTestMode() == CurrentTestMode.RAMP_DOWN) {
-                return 0; // We're trying to shut DOWN load here
+        public void removeQueueItem(@Nonnull LoadGenerator generator) {
+            synchronized (generator) {
+                AtomicInteger val = queueTaskCount.get(generator);
+                if (val != null && val.get() > 0) {
+                    val.decrementAndGet();
+                }
             }
-            int desired = gen.getDesiredRunCount();
-            int existing = generatorToRuns.get(gen).size();
-            return desired-existing;
+        }
+
+        public void addRun(@Nonnull LoadGenerator generator, @Nonnull Run run) {
+            synchronized (generator) {
+                Collection<Run> runs = generatorToRuns.get(generator);
+                if (runs != null) {
+                    runs.add(run);
+                } else {
+                    HashSet<Run> runCollection = new HashSet<>();
+                    runCollection.add(run);
+                    generatorToRuns.put(generator, runCollection);
+                }
+            }
+        }
+
+        public void removeRun(@Nonnull LoadGenerator generator, Run run) {
+            synchronized (generator) {
+                Collection<Run> runs = generatorToRuns.get(generator);
+                if (runs != null) {
+                    runs.remove(run);
+                }
+            }
         }
 
         int getRunCount(@Nonnull LoadGenerator gen) {
             synchronized (gen) {
-                Collection<Run> existing = generatorToRuns.get(gen);
-                return (existing != null) ? existing.size() : 0;
+                AtomicInteger val = queueTaskCount.get(gen);
+                int count = (val != null) ? val.get() : 0;
+                Collection<Run> runColl = generatorToRuns.get(gen);
+                if (runColl != null) {
+                    count += runColl.size();
+                }
+                return count;
+            }
+        }
+
+        /** Returns a snapshot of current runs for generator */
+        private Collection<Run> getRuns(@Nonnull LoadGenerator generator) {
+            synchronized (generator) {
+                Collection<Run> runs = generatorToRuns.get(generator);
+                ArrayList<Run> output = new ArrayList<>(runs);
+                return output;
             }
         }
 
         /** Triggers runs as requested by the LoadGenerator */
         public int triggerRuns(@Nonnull LoadGenerator gen) {
-            int count = getRunCount(gen);
-            int launchCount = gen.getRunsToLaunch(count);
             synchronized (gen) {
-                List<Job> candidates = gen.getCandidateJobs();
-                for (int i=0; i<launchCount; i++) {
-                    Job j = pickRandomJob(candidates);
-                    QueueTaskFuture<? extends Run> qtf = launchJob(gen, j, 0);
-                    try {
-                        // TODO do we get a run or a Task or what, here????
-                        registerRun(qtf.get(), gen);
-                    } catch (InterruptedException | ExecutionException ex) {
-                        // Nope
+                int count = getRunCount(gen);
+                int launchCount = gen.getRunsToLaunch(count);
+                    List<Job> candidates = gen.getCandidateJobs();
+                    for (int i=0; i<launchCount; i++) {
+                        Job j = pickRandomJob(candidates);
+                        QueueTaskFuture<? extends Run> qtf = launchJob(gen, j, 0);
+                        addQueueItem(gen);
                     }
-                }
+                return launchCount;
             }
-            return launchCount;
         }
 
         // TODO delegate somehow to the LoadGenerator for how it's going to create new runs
-
-
         public void stopAbruptly(@Nonnull final LoadGenerator gen) {
             SecurityContext context;
             synchronized (gen) {
                 ACL.impersonate(ACL.SYSTEM, new Runnable() {
                     @Override
                     public void run() {
-                        Collection<Run> runs = generatorToRuns.get(gen);
-                        if (runs == null || runs.isEmpty()) {
-                            return;
-                        }
-
-                        for (Run r : runs) {
-                            // Cancel if in queue
-                            Executor ex = r.getExecutor();
-                            if (ex == null) {
-                                ex = r.getOneOffExecutor();
+                        synchronized (gen) {
+                            LoadGeneration.cancelItems(getQueueItemsFromLoadGenerator(gen));
+                            for (Run r : getRuns(gen)) {
+                                Executor ex = r.getExecutor();
+                                if (ex == null) {
+                                    ex = r.getOneOffExecutor();
+                                }
+                                if (ex != null) {
+                                    ex.doStop();
+                                } // May need to do //WorkflowRun.doKill();
+                                removeRun(gen, r);
                             }
-                            if (ex != null) {
-                                ex.doStop();
-                            } else {
-                                //WorkflowRun.doKill();
-                            }
-                            unregisterRun(r);
                         }
                     }
                 });
             }
         }
 
-        /** Unregister run, return its generator */
-        @CheckForNull
-        public LoadGenerator unregisterRun(@Nonnull Run run) {
-            LoadGenerator gen =  mapRunToGenerator.remove(run);
-            synchronized (gen) {
-                if (gen != null) {
-                    Collection<Run> running = generatorToRuns.get(gen);
-                    if (running != null && !running.isEmpty()) {
-                        running.remove(run);
-                    }
+        @Override
+        public void onStarted(@Nonnull Run run, TaskListener listener) {
+            LoadGenerator generator = getGeneratorCause(run);
+            if (generator != null) {
+                synchronized (generator) {
+                    removeQueueItem(generator);
+                    addRun(generator, run);
                 }
-                return gen;
             }
         }
 
         @Override
-        public void onFinalized(Run run) {
-            LoadGenerator gen = unregisterRun(run);
-            if (gen != null) {
-                triggerRuns(gen);
-            }
-        }
-
-        @Override
-        public void onDeleted(Run run) {
-            LoadGenerator gen = unregisterRun(run);
-            if (gen != null) {
-                triggerRuns(gen);
+        public void onFinalized(@Nonnull Run run) {
+            LoadGeneratorCause cause = (LoadGeneratorCause)(run.getCause(LoadGeneratorCause.class));
+            if (cause != null) {
+                LoadGenerator gen = getDescriptorInstance().getGeneratorbyId(cause.getGeneratorId());
+                if (gen != null) {
+                    removeRun(gen, run);
+                    triggerRuns(gen);
+                }
             }
         }
     }
@@ -355,7 +415,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
         @Override
         public long getRecurrencePeriod() {
-            return 3000L;
+            return 2000L;
         }
 
         @Override
@@ -467,11 +527,13 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
         @Override
         public CurrentTestMode start() {
+            this.currentTestMode = CurrentTestMode.LOAD_TEST;
             return CurrentTestMode.LOAD_TEST;
         }
 
         @Override
         public CurrentTestMode stop() {
+            this.currentTestMode = CurrentTestMode.IDLE;
             return CurrentTestMode.IDLE;
         }
 

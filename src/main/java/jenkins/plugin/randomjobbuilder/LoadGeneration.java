@@ -37,8 +37,6 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Pattern;
 
 /**
@@ -47,6 +45,10 @@ import java.util.regex.Pattern;
 public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
     final static Random rand = new Random();
+
+    public static DescriptorImpl getDescriptorInstance() {
+        return Jenkins.getActiveInstance().getExtensionList(LoadGeneration.DescriptorImpl.class).get(0);
+    }
 
     @Extension
     public static class DescriptorImpl extends Descriptor<LoadGeneration> {
@@ -72,9 +74,15 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             return null;
         }
 
+        public void addGenerator(LoadGenerator lg) {
+            loadGenerators.add(lg);
+            save();
+        }
+
         @Override
         public boolean configure(StaplerRequest req, JSONObject json) throws FormException {
             try {
+                // FixMe need to deactivate any removed generators
                 loadGenerators.rebuildHetero(req, json, Jenkins.getActiveInstance().getExtensionList(LoadGenerator.DescriptorBase.class), "loadGenerators");
                 save();
             } catch (IOException ioe) {
@@ -137,7 +145,6 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             SecurityContext old = null;
             try {
                 old = ACL.impersonate(ACL.SYSTEM);
-                ParameterizedJobMixIn.ParameterizedJob pj = (ParameterizedJobMixIn.ParameterizedJob)job;
                 QueueTaskFuture<? extends Run> future = new ParameterizedBuilder(job).scheduleBuild2(quietPeriod, new CauseAction(new LoadGeneratorCause(generator)));
                 return future;
             } finally {
@@ -222,7 +229,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
      *
      */
     @Extension
-    static class GeneratorController extends RunListener<Run> {
+    public static class GeneratorController extends RunListener<Run> {
         ConcurrentHashMap<Run, LoadGenerator> mapRunToGenerator = new ConcurrentHashMap<>();
         ConcurrentHashMap<LoadGenerator, Collection<Run>> generatorToRuns = new ConcurrentHashMap<>();
 

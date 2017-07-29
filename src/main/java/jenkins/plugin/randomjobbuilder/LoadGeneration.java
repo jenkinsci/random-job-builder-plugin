@@ -24,7 +24,11 @@ import org.acegisecurity.context.SecurityContext;
 import org.acegisecurity.context.SecurityContextHolder;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.DataBoundSetter;
+import org.kohsuke.stapler.HttpResponse;
+import org.kohsuke.stapler.HttpResponses;
 import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.interceptor.RequirePOST;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
@@ -84,7 +88,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         @Override
         public boolean configure(StaplerRequest req, JSONObject json) throws FormException {
             try {
-                // FixMe need to deactivate any removed generators
+                // FIXME need to deactivate any removed generators
                 loadGenerators.rebuildHetero(req, json, Jenkins.getActiveInstance().getExtensionList(LoadGenerator.DescriptorBase.class), "loadGenerators");
                 save();
             } catch (IOException ioe) {
@@ -203,9 +207,9 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
         /** Sets name pattern with fluent-style API  */
         JobNameFilter setNamePattern(String filterCondition) {
-            if (!StringUtils.isEmpty(nameMatchRegex)) {
-                this.nameMatchRegex = nameMatchRegex;
-                this.namePattern = Pattern.compile(nameMatchRegex);
+            if (!StringUtils.isEmpty(filterCondition)) {
+                this.nameMatchRegex = filterCondition;
+                this.namePattern = Pattern.compile(filterCondition);
             } else {
                 this.nameMatchRegex = null;
                 this.namePattern = null;
@@ -217,8 +221,11 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         public boolean apply(@Nullable Job input) {
             if (input == null) {
                 return false;
+            } else if (StringUtils.isEmpty(nameMatchRegex)) {
+                return true;
+            } else {
+                return namePattern.matcher(input.getFullName()).matches();
             }
-            return namePattern.matcher(input.getFullName()).matches();
         }
     }
 
@@ -349,12 +356,12 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             synchronized (gen) {
                 int count = getRunCount(gen);
                 int launchCount = gen.getRunsToLaunch(count);
-                    List<Job> candidates = gen.getCandidateJobs();
-                    for (int i=0; i<launchCount; i++) {
-                        Job j = pickRandomJob(candidates);
-                        QueueTaskFuture<? extends Run> qtf = launchJob(gen, j, 0);
-                        addQueueItem(gen);
-                    }
+                List<Job> candidates = gen.getCandidateJobs();
+                for (int i=0; i<launchCount; i++) {
+                    Job j = pickRandomJob(candidates);
+                    QueueTaskFuture<? extends Run> qtf = launchJob(gen, j, 0);
+                    addQueueItem(gen);
+                }
                 return launchCount;
             }
         }
@@ -444,7 +451,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         /** Pool of generated jobs */
         protected HashSet<Run> generated = new HashSet<Run>();
 
-        public CurrentTestMode getTestMode() {
+        public CurrentTestMode getCurrentTestMode() {
             return currentTestMode;
         }
 
@@ -453,7 +460,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         }
 
         public boolean isActive() {
-            return getTestMode() == CurrentTestMode.RAMP_UP || getTestMode() == CurrentTestMode.LOAD_TEST;
+            return getCurrentTestMode() == CurrentTestMode.RAMP_UP || getCurrentTestMode() == CurrentTestMode.LOAD_TEST;
         }
 
         /** Given current number of runs, launch more if needed.  Return number to fire now, or less than 0 for none
@@ -525,6 +532,22 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             return LoadGeneration.filterJobsByCondition(new JobNameFilter(jobNameRegex));
         }
 
+        /** Start load generation */
+        @RequirePOST
+        public HttpResponse doBegin(StaplerRequest request) {
+            // FIXME admin acl check
+            this.start();
+            return HttpResponses.ok();
+        }
+
+        /** Stop load generation */
+        @RequirePOST
+        public HttpResponse doEnd(StaplerRequest request) {
+            // FIXME admin acl check
+            this.stop();
+            return HttpResponses.ok();
+        }
+
         @Override
         public CurrentTestMode start() {
             this.currentTestMode = CurrentTestMode.LOAD_TEST;
@@ -542,6 +565,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             return jobNameRegex;
         }
 
+        @DataBoundSetter
         public void setJobNameRegex(String jobNameRegex) {
             this.jobNameRegex = jobNameRegex;
         }
@@ -551,16 +575,23 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             return desiredRunCount;
         }
 
+        @DataBoundSetter
         public void setDesiredRunCount(int desiredRunCount) {
             this.desiredRunCount = desiredRunCount;
         }
 
+        @DataBoundConstructor
+        public TrivialLoadGenerator() {
+
+        }
+
+        /*@DataBoundConstructor
         public TrivialLoadGenerator(@CheckForNull String jobNameRegex, int desiredRunCount) {
             setJobNameRegex(jobNameRegex);
             if (desiredRunCount < 0) {  // TODO Jelly form validation to reject this
                 this.desiredRunCount = 1;
             }
-        }
+        }*/
 
         @Extension
         public static class DescriptorImpl extends DescriptorBase {

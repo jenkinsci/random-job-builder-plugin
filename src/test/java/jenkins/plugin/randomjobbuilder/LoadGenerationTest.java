@@ -30,7 +30,7 @@ public class LoadGenerationTest {
         assertFalse("Generator should start inactive", trivialMatch.isActive());
         assertEquals("Inactive generator shouldn't try to launch jobs", 0, trivialMatch.getRunsToLaunch(0));
         assertEquals(1, trivialMatch.getDesiredRunCount());
-        assertEquals("Generator should start idle and didn't", LoadGeneration.CurrentTestMode.IDLE, trivialMatch.getTestMode());
+        assertEquals("Generator should start idle and didn't", LoadGeneration.CurrentTestMode.IDLE, trivialMatch.getCurrentTestMode());
         assertEquals(".*", trivialMatch.getJobNameRegex());
         assertNotNull(trivialMatch.getGeneratorId());
     }
@@ -45,6 +45,11 @@ public class LoadGenerationTest {
         assertTrue("Filter should return job", candidates.contains(job));
         assertEquals(1, candidates.size());
         assertEquals(job,LoadGeneration.pickRandomJob(candidates));
+
+        trivialMatch.setJobNameRegex("");
+        assertEquals(1, trivialMatch.getCandidateJobs().size());
+        trivialMatch.setJobNameRegex(null);
+        assertEquals(1, trivialMatch.getCandidateJobs().size());
 
         LoadGeneration.TrivialLoadGenerator trivialNoMatch = new LoadGeneration.TrivialLoadGenerator("cheese", 1);
         candidates = trivialNoMatch.getCandidateJobs();
@@ -70,12 +75,12 @@ public class LoadGenerationTest {
         LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 1);
         LoadGeneration.CurrentTestMode testMode = trivial.start();
         assertEquals(LoadGeneration.CurrentTestMode.LOAD_TEST, testMode);
-        assertEquals(LoadGeneration.CurrentTestMode.LOAD_TEST, trivial.getTestMode());
+        assertEquals(LoadGeneration.CurrentTestMode.LOAD_TEST, trivial.getCurrentTestMode());
         assert trivial.isActive();
 
         testMode = trivial.stop();
         assertEquals(LoadGeneration.CurrentTestMode.IDLE, testMode);
-        assertEquals(LoadGeneration.CurrentTestMode.IDLE, trivial.getTestMode());
+        assertEquals(LoadGeneration.CurrentTestMode.IDLE, trivial.getCurrentTestMode());
         assert !trivial.isActive();
     }
 

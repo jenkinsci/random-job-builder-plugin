@@ -23,6 +23,8 @@ import net.sf.json.JSONObject;
 import org.acegisecurity.context.SecurityContext;
 import org.acegisecurity.context.SecurityContextHolder;
 import org.apache.commons.lang.StringUtils;
+import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.NoExternalUse;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.HttpResponse;
@@ -89,6 +91,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         public boolean configure(StaplerRequest req, JSONObject json) throws FormException {
             try {
                 // FIXME need to deactivate any removed generators
+                // FIXME recreates generators rather than reconfiguring existing instances
                 loadGenerators.rebuildHetero(req, json, Jenkins.getActiveInstance().getExtensionList(LoadGenerator.DescriptorBase.class), "loadGenerators");
                 save();
             } catch (IOException ioe) {
@@ -274,6 +277,10 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         return null;
     }
 
+    public static GeneratorController getGeneratorController() {
+        return Jenkins.getActiveInstance().getExtensionList(GeneratorController.class).get(0);
+    }
+
     /** Registers run for lookup, so we know which ones to kill if we stop load suddenly...
      *   or in which cases we need to start new jobs to maintain load level
      *
@@ -281,8 +288,11 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
      *
      *
      */
+    @Restricted(NoExternalUse.class)
     @Extension
     public static class GeneratorController extends RunListener<Run> {
+        // FIXME the accounting for tasks is broken, sometimes it overcounts, sometimes it undercounts.
+
         ConcurrentHashMap<LoadGenerator, AtomicInteger> queueTaskCount = new ConcurrentHashMap<>();
 
         /** Needed in order to cancel runs in progress */
@@ -330,7 +340,23 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
-        int getRunCount(@Nonnull LoadGenerator gen) {
+        public int getQueuedCount(@Nonnull LoadGenerator gen) {
+            synchronized (gen) {
+                AtomicInteger val = queueTaskCount.get(gen);
+                int count = (val != null) ? val.get() : 0;
+                return count;
+            }
+        }
+
+        public int getRunningCount(@Nonnull LoadGenerator gen) {
+            synchronized (gen) {
+                Collection<Run> runColl = generatorToRuns.get(gen);
+                return (runColl != null) ? runColl.size() : 0;
+            }
+        }
+
+        /** Sum of both queued and actively running runs for the given generator */
+        int getQueuedAndRunningCount(@Nonnull LoadGenerator gen) {
             synchronized (gen) {
                 AtomicInteger val = queueTaskCount.get(gen);
                 int count = (val != null) ? val.get() : 0;
@@ -354,7 +380,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         /** Triggers runs as requested by the LoadGenerator */
         public int triggerRuns(@Nonnull LoadGenerator gen) {
             synchronized (gen) {
-                int count = getRunCount(gen);
+                int count = getQueuedAndRunningCount(gen);
                 int launchCount = gen.getRunsToLaunch(count);
                 List<Job> candidates = gen.getCandidateJobs();
                 for (int i=0; i<launchCount; i++) {
@@ -393,6 +419,8 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
         @Override
         public void onStarted(@Nonnull Run run, TaskListener listener) {
+            // FIXME this doesn't seem to be enough to correctly handle Queue.item accounting
+            // when combined with item
             LoadGenerator generator = getGeneratorCause(run);
             if (generator != null) {
                 synchronized (generator) {
@@ -463,7 +491,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             return getCurrentTestMode() == CurrentTestMode.RAMP_UP || getCurrentTestMode() == CurrentTestMode.LOAD_TEST;
         }
 
-        /** Given current number of runs, launch more if needed.  Return number to fire now, or less than 0 for none
+        /** Given current number of runs, launch more if needed.  Return number to fire now, or &lt;= 0 for none
          *  This allows for ramp-up behavior.
          */
         public int getRunsToLaunch(int currentRuns) {
@@ -585,13 +613,14 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
         }
 
-        /*@DataBoundConstructor
         public TrivialLoadGenerator(@CheckForNull String jobNameRegex, int desiredRunCount) {
             setJobNameRegex(jobNameRegex);
             if (desiredRunCount < 0) {  // TODO Jelly form validation to reject this
                 this.desiredRunCount = 1;
+            } else {
+                this.desiredRunCount = desiredRunCount;
             }
-        }*/
+        }
 
         @Extension
         public static class DescriptorImpl extends DescriptorBase {

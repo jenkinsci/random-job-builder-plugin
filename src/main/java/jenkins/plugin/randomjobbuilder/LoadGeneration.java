@@ -20,6 +20,7 @@ import hudson.model.listeners.RunListener;
 import hudson.model.queue.QueueTaskFuture;
 import hudson.security.ACL;
 import hudson.util.DescribableList;
+import hudson.util.FormValidation;
 import jenkins.model.Jenkins;
 import jenkins.model.ParameterizedJobMixIn;
 import net.sf.json.JSONObject;
@@ -32,6 +33,7 @@ import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.HttpResponses;
+import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.interceptor.RequirePOST;
 
@@ -335,21 +337,28 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         // FIXME the accounting for tasks is broken, sometimes it overcounts, sometimes it undercounts.
         ConcurrentHashMap<String, LoadGenerator> registeredGenerators = new ConcurrentHashMap<String, LoadGenerator>();
 
-        ConcurrentHashMap<LoadGenerator, AtomicInteger> queueTaskCount = new ConcurrentHashMap<>();
+        /** Map {@link LoadGenerator#generatorId} to that LoadGenerator's queued item count */
+        ConcurrentHashMap<String, AtomicInteger> queueTaskCount = new ConcurrentHashMap<>();
 
-        /** Needed in order to cancel runs in progress */
-        ConcurrentHashMap<LoadGenerator, Collection<Run>> generatorToRuns = new ConcurrentHashMap<>();
+        /** Map {@link LoadGenerator#generatorId} to that LoadGenerator's {@link Run}s,
+         *   needed in order to cancel runs in progress */
+        ConcurrentHashMap<String, Collection<Run>> generatorToRuns = new ConcurrentHashMap<>();
 
-        /** Register all listed generators if not already present*/
-        public void registerGenerator(@Nonnull LoadGenerator generator) {
-            registeredGenerators.putIfAbsent(generator.getGeneratorId(), generator);
+        /** Register the generator in {@link #registeredGenerators} or
+         *   replace existing generator with the same generator ID */
+        public void registerOrUpdateGenerator(@Nonnull LoadGenerator generator) {
+            registeredGenerators.put(generator.getGeneratorId(), generator);
         }
 
-        public void unregisterGenerator(@Nonnull LoadGenerator generator) {
+        /**
+         * Unregister the generator and stop all jobs & tasks from it
+         * @param generator
+         */
+        public void unregisterAndStopGenerator(@Nonnull LoadGenerator generator) {
             synchronized (generator) {
                 generator.stop();
                 this.stopAbruptly(generator);
-                registeredGenerators.remove(generator);
+                registeredGenerators.remove(generator.getGeneratorId());
             }
         }
 
@@ -362,33 +371,33 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         /** Ensure that the registered generators match input set, registering any new ones and unregistering ones not in input,
          *  which will kill any jobs or tasks linked to them */
         public synchronized void synchGenerators(@Nonnull Collection<LoadGenerator> generators) {
-            Set<String> registeredSet = registeredGenerators.keySet();
+            Set<LoadGenerator> registeredSet = new HashSet<LoadGenerator>(registeredGenerators.values());
             Set<LoadGenerator> inputSet = new HashSet<LoadGenerator>(generators);
 
-            for (String generatorId : Sets.difference(registeredSet, inputSet)) {
-                unregisterGenerator(registeredGenerators.get(generatorId));
+            for (LoadGenerator gen : Sets.difference(registeredSet, inputSet)) {
+                unregisterAndStopGenerator(gen);
             }
 
             for (LoadGenerator lg : generators) {
-                registerGenerator(lg);
+                registerOrUpdateGenerator(lg);
             }
         }
 
 
         public void addQueueItem(@Nonnull LoadGenerator generator) {
             synchronized (generator) {
-                AtomicInteger val = queueTaskCount.get(generator);
+                AtomicInteger val = queueTaskCount.get(generator.getGeneratorId());
                 if (val != null) {
                     val.incrementAndGet();
                 } else {
-                    queueTaskCount.put(generator, new AtomicInteger(1));
+                    queueTaskCount.put(generator.getGeneratorId(), new AtomicInteger(1));
                 }
             }
         }
 
         public void removeQueueItem(@Nonnull LoadGenerator generator) {
             synchronized (generator) {
-                AtomicInteger val = queueTaskCount.get(generator);
+                AtomicInteger val = queueTaskCount.get(generator.getGeneratorId());
                 if (val != null && val.get() > 0) {
                     val.decrementAndGet();
                 }
@@ -397,20 +406,20 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
         public void addRun(@Nonnull LoadGenerator generator, @Nonnull Run run) {
             synchronized (generator) {
-                Collection<Run> runs = generatorToRuns.get(generator);
+                Collection<Run> runs = generatorToRuns.get(generator.getGeneratorId());
                 if (runs != null) {
                     runs.add(run);
                 } else {
                     HashSet<Run> runCollection = new HashSet<>();
                     runCollection.add(run);
-                    generatorToRuns.put(generator, runCollection);
+                    generatorToRuns.put(generator.getGeneratorId(), runCollection);
                 }
             }
         }
 
         public void removeRun(@Nonnull LoadGenerator generator, Run run) {
             synchronized (generator) {
-                Collection<Run> runs = generatorToRuns.get(generator);
+                Collection<Run> runs = generatorToRuns.get(generator.getGeneratorId());
                 if (runs != null) {
                     runs.remove(run);
                 }
@@ -419,7 +428,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
         public int getQueuedCount(@Nonnull LoadGenerator gen) {
             synchronized (gen) {
-                AtomicInteger val = queueTaskCount.get(gen);
+                AtomicInteger val = queueTaskCount.get(gen.getGeneratorId());
                 int count = (val != null) ? val.get() : 0;
                 return count;
             }
@@ -427,7 +436,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
         public int getRunningCount(@Nonnull LoadGenerator gen) {
             synchronized (gen) {
-                Collection<Run> runColl = generatorToRuns.get(gen);
+                Collection<Run> runColl = generatorToRuns.get(gen.getGeneratorId());
                 return (runColl != null) ? runColl.size() : 0;
             }
         }
@@ -435,9 +444,9 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         /** Sum of both queued and actively running runs for the given generator */
         int getQueuedAndRunningCount(@Nonnull LoadGenerator gen) {
             synchronized (gen) {
-                AtomicInteger val = queueTaskCount.get(gen);
+                AtomicInteger val = queueTaskCount.get(gen.getGeneratorId());
                 int count = (val != null) ? val.get() : 0;
-                Collection<Run> runColl = generatorToRuns.get(gen);
+                Collection<Run> runColl = generatorToRuns.get(gen.getGeneratorId());
                 if (runColl != null) {
                     count += runColl.size();
                 }
@@ -448,7 +457,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         /** Returns a snapshot of current runs for generator */
         private Collection<Run> getRuns(@Nonnull LoadGenerator generator) {
             synchronized (generator) {
-                Collection<Run> runs = generatorToRuns.get(generator);
+                Collection<Run> runs = generatorToRuns.get(generator.getGeneratorId());
                 ArrayList<Run> output = new ArrayList<>(runs);
                 return output;
             }
@@ -458,24 +467,27 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
          *  @return Number of runs triggered as a result of load check
          */
         public int checkLoadAndTriggerRuns(@Nonnull LoadGenerator gen) {
-            synchronized (gen) {
-                if (!registeredGenerators.containsKey(gen.getGeneratorId())) {
+            LoadGenerator registeredGen = getRegisteredGeneratorbyId(gen.generatorId);
+            synchronized (registeredGen) {
+                if (!registeredGenerators.containsKey(registeredGen.getGeneratorId())) {
                     return 0; // Not a registered generator
                 }
-                int count = getQueuedAndRunningCount(gen);
-                int launchCount = gen.getRunsToLaunch(count);
-                List<Job> candidates = gen.getCandidateJobs();
+                int count = getQueuedAndRunningCount(registeredGen);
+                int launchCount = registeredGen.getRunsToLaunch(count);
+                List<Job> candidates = registeredGen.getCandidateJobs();
                 for (int i=0; i<launchCount; i++) {
                     Job j = pickRandomJob(candidates);
-                    QueueTaskFuture<? extends Run> qtf = launchJob(gen, j, 0);
-                    addQueueItem(gen);
+                    QueueTaskFuture<? extends Run> qtf = launchJob(registeredGen, j, 0);
+                    addQueueItem(registeredGen);
                 }
                 return launchCount;
             }
         }
 
         /** Shut down the generator, kill all its queued items, and cancel all its current runs */
-        public void stopAbruptly(@Nonnull final LoadGenerator gen) {
+        public void stopAbruptly(@Nonnull final LoadGenerator inputGen) {
+            // Find the appropriate registered generator, don't just blindly use supplied instance
+            final LoadGenerator gen = getRegisteredGeneratorbyId(inputGen.generatorId);
             gen.stop();
             SecurityContext context;
             synchronized (gen) {
@@ -565,17 +577,23 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
     /** Base for all load generators that run jobs */
     public static abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerator> {
         /** Identifies the generator for causes */
-        protected String generatorId = UUID.randomUUID().toString();
+        protected final String generatorId;
 
         protected CurrentTestMode currentTestMode = CurrentTestMode.IDLE;
-
-        /** Pool of generated jobs */
-        protected HashSet<Run> generated = new HashSet<Run>();
 
         public CurrentTestMode getCurrentTestMode() {
             return currentTestMode;
         }
 
+        public LoadGenerator() {
+            this.generatorId = DescriptorBase.getNewGeneratorId();
+        }
+
+        public LoadGenerator(@Nonnull String generatorId) {
+            this.generatorId = generatorId;
+        }
+
+        @Nonnull
         public String getGeneratorId() {
             return generatorId;
         }
@@ -619,9 +637,21 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         @Extension
         public static class DescriptorBase extends Descriptor<LoadGenerator> {
 
+            /** Creates a new, generally unique generator ID */
+            public static String getNewGeneratorId() {
+                return UUID.randomUUID().toString();
+            }
+
             @Override
             public String getDisplayName() {
                 return "";
+            }
+
+            public FormValidation doCheckGeneratorId(@QueryParameter String generatorId) {
+                if (StringUtils.isEmpty(generatorId)) {
+                    return FormValidation.error("Generator ID \"{0}\" is empty!");
+                }
+                return FormValidation.ok();
             }
         }
 

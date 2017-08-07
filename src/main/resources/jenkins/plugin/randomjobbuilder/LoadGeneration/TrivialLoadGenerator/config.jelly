@@ -6,10 +6,12 @@
         <f:submit name="trigger" value="toggle"></f:submit>
     </f:form>-->
     <div>
-        <j:if test="${!isActive}">ACTIVE</j:if>
-        <j:if test="${isActive}">INACTIVE</j:if>
-        ${isActive.toString()}
+        <j:if test="${isActive}">ACTIVE</j:if>
+        <j:if test="${!isActive}">INACTIVE</j:if>
     </div>
+    <f:entry field="generatorId" title="${%Generator ID (unique)}">
+        <f:textbox default="${descriptor.getNewGeneratorId()}"/>
+    </f:entry>
     <f:entry field="jobNameRegex" title="${%Regex used to select matching jobs}">
         <f:textbox/>
     </f:entry>

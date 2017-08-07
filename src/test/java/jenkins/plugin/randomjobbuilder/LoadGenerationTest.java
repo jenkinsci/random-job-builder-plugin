@@ -1,7 +1,6 @@
 package jenkins.plugin.randomjobbuilder;
 
 import hudson.model.Job;
-import hudson.model.Queue;
 import hudson.model.labels.LabelAtom;
 import hudson.model.queue.QueueTaskFuture;
 import hudson.tasks.LogRotator;
@@ -86,7 +85,7 @@ public class LoadGenerationTest {
                 "sleep 1"));
         LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 1);
         LoadGeneration.DescriptorImpl desc = LoadGeneration.getDescriptorInstance();
-        LoadGeneration.getGeneratorController().registerGenerator(trivial);
+        LoadGeneration.getGeneratorController().registerOrUpdateGenerator(trivial);
         LoadGeneration.getGeneratorController().setAutostart(true);
 
         Jenkins j = jenkinsRule.getInstance();
@@ -114,7 +113,7 @@ public class LoadGenerationTest {
         LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 8);
         trivial.start();
         LoadGeneration.GeneratorController controller = LoadGeneration.getGeneratorController();
-        controller.registerGenerator(trivial);
+        controller.registerOrUpdateGenerator(trivial);
 
         // Incrementing & Decrementing Queue Item counts & seeing impact on controller & desired run count
         Assert.assertEquals(0, controller.getQueuedCount(trivial));
@@ -164,7 +163,7 @@ public class LoadGenerationTest {
         Assert.assertEquals(8, trivial.getDesiredRunCount());
         LoadGeneration.DescriptorImpl desc = LoadGeneration.getDescriptorInstance();
         LoadGeneration.GeneratorController controller = LoadGeneration.getGeneratorController();
-        controller.registerGenerator(trivial);
+        controller.registerOrUpdateGenerator(trivial);
 
         // Check it queued up correctly
         Jenkins j = jenkinsRule.getInstance();

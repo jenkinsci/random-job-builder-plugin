@@ -4,7 +4,9 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import hudson.Extension;
+import hudson.Util;
 import hudson.model.AbstractDescribableImpl;
+import hudson.model.Action;
 import hudson.model.Cause;
 import hudson.model.CauseAction;
 import hudson.model.Descriptor;
@@ -87,7 +89,6 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         @Override
         public boolean configure(StaplerRequest req, JSONObject json) throws FormException {
             try {
-                // FIXME need to deactivate any removed generators
                 // FIXME recreates generators rather than reconfiguring existing instances
                 loadGenerators.rebuildHetero(req, json, Jenkins.getActiveInstance().getExtensionList(LoadGenerator.DescriptorBase.class), "loadGenerators");
                 getGeneratorController().synchGenerators(loadGenerators);
@@ -108,6 +109,45 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         RAMP_UP,
         LOAD_TEST, // active at full load
         RAMP_DOWN
+    }
+
+    /** We need to attach this when trying to launch tasks otherwise the Queue will reject most of them as duplicates! */
+    public static class LoadGeneratorQueueAction implements Queue.QueueAction {
+
+        final LoadGeneratorCause loadGeneratorCause;
+
+        public LoadGeneratorQueueAction(@Nonnull LoadGeneratorCause lgc) {
+            this.loadGeneratorCause = lgc;
+        }
+
+        @Override
+        public boolean shouldSchedule(List<Action> actions) {
+            if (actions != null && actions.size() > 0) {
+                List<LoadGeneratorQueueAction> possibleMatch = Util.filter(actions, LoadGeneratorQueueAction.class);
+                for (LoadGeneratorQueueAction lga : possibleMatch) {
+                    if (lga.equals(this)) {
+                        return false;
+                    }
+                    return true;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public String getIconFileName() {
+            return null;
+        }
+
+        @Override
+        public String getDisplayName() {
+            return "LoadGenerator Queued";
+        }
+
+        @Override
+        public String getUrlName() {
+            return "bob";
+        }
     }
 
     public static class LoadGeneratorCause extends Cause {
@@ -151,7 +191,10 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             SecurityContext old = null;
             try {
                 old = ACL.impersonate(ACL.SYSTEM);
-                QueueTaskFuture<? extends Run> future = new ParameterizedBuilder(job).scheduleBuild2(quietPeriod, new CauseAction(new LoadGeneratorCause(generator)));
+                LoadGeneratorCause lgc = new LoadGeneratorCause(generator);
+                // You MUST attach a LoadGeneratorQueueAction or most of the submitted items will be treated as duplicates
+                // and not scheduled
+                QueueTaskFuture<? extends Run> future = new ParameterizedBuilder(job).scheduleBuild2(quietPeriod, new CauseAction(lgc), new LoadGeneratorQueueAction(lgc));
                 return future;
             } finally {
                 if (old != null) {

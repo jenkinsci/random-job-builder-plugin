@@ -1,6 +1,7 @@
 package jenkins.plugin.randomjobbuilder;
 
 import hudson.model.Job;
+import hudson.model.Queue;
 import hudson.model.labels.LabelAtom;
 import hudson.model.queue.QueueTaskFuture;
 import hudson.tasks.LogRotator;
@@ -162,20 +163,20 @@ public class LoadGenerationTest {
         LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 8);
         Assert.assertEquals(8, trivial.getDesiredRunCount());
         LoadGeneration.DescriptorImpl desc = LoadGeneration.getDescriptorInstance();
-        LoadGeneration.getGeneratorController().registerGenerator(trivial);
+        LoadGeneration.GeneratorController controller = LoadGeneration.getGeneratorController();
+        controller.registerGenerator(trivial);
 
         // Check it queued up correctly
         Jenkins j = jenkinsRule.getInstance();
         trivial.start();
         Assert.assertEquals(8, trivial.getRunsToLaunch(0));
-        LoadGeneration.getGeneratorController().setAutostart(true);
-        Thread.sleep(4000L);
-        LoadGeneration.GeneratorController controller = LoadGeneration.getGeneratorController();
+        // TODO checkLoadAndTriggerRuns test
+        controller.maintainLoad(); // triggers one cycle of load generation
+        trivial.stop();
         Assert.assertEquals(8, controller.getQueuedAndRunningCount(trivial));
-        Thread.sleep(200L);
+        Thread.sleep(4000);
 
         // Disable generator and verify it doesn't run any more
-        trivial.stop();
         jenkinsRule.createOnlineSlave(new LabelAtom("doesnotexist"));
         jenkinsRule.waitUntilNoActivityUpTo(1000);
 

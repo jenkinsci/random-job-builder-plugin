@@ -178,7 +178,7 @@ public class LoadGenerationTest {
 
         // Disable generator and verify it doesn't run any more
         jenkinsRule.createOnlineSlave(new LabelAtom("doesnotexist"));
-        jenkinsRule.waitUntilNoActivityUpTo(1000);
+        jenkinsRule.waitUntilNoActivityUpTo(2000);
 
         Assert.assertEquals(8,  job.getBuilds().size());
     }

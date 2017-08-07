@@ -4,6 +4,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import hudson.Extension;
+import hudson.ExtensionPoint;
 import hudson.Util;
 import hudson.model.AbstractDescribableImpl;
 import hudson.model.Action;
@@ -14,6 +15,7 @@ import hudson.model.Executor;
 import hudson.model.Job;
 import hudson.model.PeriodicWork;
 import hudson.model.Queue;
+import hudson.model.ReconfigurableDescribable;
 import hudson.model.Run;
 import hudson.model.TaskListener;
 import hudson.model.listeners.RunListener;
@@ -43,6 +45,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -76,17 +79,6 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             return "Load Generation";
         }
 
-        /** Find generator by its unique ID or return null */
-        @CheckForNull
-        public LoadGenerator getGeneratorbyId(@Nonnull String generatorId) {
-            return getGeneratorController().getRegisteredGeneratorbyId(generatorId);
-        }
-
-        public void addGenerator(LoadGenerator lg) {
-            loadGenerators.add(lg);
-            save();
-        }
-
         @Override
         public boolean configure(StaplerRequest req, JSONObject json) throws FormException {
             try {
@@ -98,6 +90,11 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
                 throw new RuntimeException("Something failed horribly around descriptors", ioe);
             }
             return true;
+        }
+
+        public synchronized void load() {
+            super.load();
+            getGeneratorController().synchGenerators(loadGenerators);
         }
 
         public DescriptorImpl() {
@@ -345,14 +342,22 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         ConcurrentHashMap<String, Collection<Run>> generatorToRuns = new ConcurrentHashMap<>();
 
         /** Register the generator in {@link #registeredGenerators} or
-         *   replace existing generator with the same generator ID */
+         *   replace existing generator with the same generator ID
+         *   FIXME Replace with hidden fields and/or {@link ReconfigurableDescribable}
+         *   @param generator Generator to register/update
+         */
         public void registerOrUpdateGenerator(@Nonnull LoadGenerator generator) {
-            registeredGenerators.put(generator.getGeneratorId(), generator);
+            LoadGenerator previous = registeredGenerators.put(generator.getGeneratorId(), generator);
+            synchronized (generator) {
+                if (previous != null) {  // Copy some transitory state in, but honestly this is a hack
+                    generator.currentTestMode = previous.currentTestMode;
+                }
+            }
         }
 
         /**
-         * Unregister the generator and stop all jobs & tasks from it
-         * @param generator
+         * Unregister the generator and stop all jobs and tasks from it
+         * @param generator Generator to unregister/remove
          */
         public void unregisterAndStopGenerator(@Nonnull LoadGenerator generator) {
             synchronized (generator) {
@@ -362,14 +367,18 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
-        /** Find generator by its unique ID or return null */
+        /** Find generator by its unique ID or return null if not registered
+         * @param generatorId ID of registered generator
+         */
         @CheckForNull
         public LoadGenerator getRegisteredGeneratorbyId(@Nonnull String generatorId) {
             return registeredGenerators.get(generatorId);
         }
 
         /** Ensure that the registered generators match input set, registering any new ones and unregistering ones not in input,
-         *  which will kill any jobs or tasks linked to them */
+         *  which will kill any jobs or tasks linked to them
+         *  @param generators List of generators to add/remove/update
+         */
         public synchronized void synchGenerators(@Nonnull Collection<LoadGenerator> generators) {
             Set<LoadGenerator> registeredSet = new HashSet<LoadGenerator>(registeredGenerators.values());
             Set<LoadGenerator> inputSet = new HashSet<LoadGenerator>(generators);
@@ -383,7 +392,10 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
-
+        /**
+         * Track adding a queued task for the given generator
+         * @param generator Generator that created the task
+         */
         public void addQueueItem(@Nonnull LoadGenerator generator) {
             synchronized (generator) {
                 AtomicInteger val = queueTaskCount.get(generator.getGeneratorId());
@@ -395,6 +407,10 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
+        /**
+         * Decrement queued item count for generator
+         * @param generator Generator that generated the task
+         */
         public void removeQueueItem(@Nonnull LoadGenerator generator) {
             synchronized (generator) {
                 AtomicInteger val = queueTaskCount.get(generator.getGeneratorId());
@@ -404,6 +420,11 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
+        /**
+         * Track a run originating from a given generator
+         * @param generator
+         * @param run
+         */
         public void addRun(@Nonnull LoadGenerator generator, @Nonnull Run run) {
             synchronized (generator) {
                 Collection<Run> runs = generatorToRuns.get(generator.getGeneratorId());
@@ -417,6 +438,11 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
+        /**
+         * Remove a run (as if completed) that was tracked against a given generator
+         * @param generator
+         * @param run
+         */
         public void removeRun(@Nonnull LoadGenerator generator, Run run) {
             synchronized (generator) {
                 Collection<Run> runs = generatorToRuns.get(generator.getGeneratorId());
@@ -426,6 +452,11 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
+        /**
+         * Get number of tracked queued items for generator
+         * @param gen
+         * @return Queued count
+         */
         public int getQueuedCount(@Nonnull LoadGenerator gen) {
             synchronized (gen) {
                 AtomicInteger val = queueTaskCount.get(gen.getGeneratorId());
@@ -434,6 +465,11 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
+        /**
+         * Get the count of actually running jobs for the generator
+         * @param gen
+         * @return
+         */
         public int getRunningCount(@Nonnull LoadGenerator gen) {
             synchronized (gen) {
                 Collection<Run> runColl = generatorToRuns.get(gen.getGeneratorId());
@@ -441,7 +477,9 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
-        /** Sum of both queued and actively running runs for the given generator */
+        /** Sum of both queued and actively running runs for the given generator
+         * @param gen
+         */
         int getQueuedAndRunningCount(@Nonnull LoadGenerator gen) {
             synchronized (gen) {
                 AtomicInteger val = queueTaskCount.get(gen.getGeneratorId());
@@ -454,16 +492,19 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
-        /** Returns a snapshot of current runs for generator */
+        /** Returns a snapshot of current tracked runs for generator
+         *  @param generator
+         */
+        @Nonnull
         private Collection<Run> getRuns(@Nonnull LoadGenerator generator) {
             synchronized (generator) {
                 Collection<Run> runs = generatorToRuns.get(generator.getGeneratorId());
-                ArrayList<Run> output = new ArrayList<>(runs);
-                return output;
+                return (runs != null && runs.size() > 0) ? new ArrayList<Run>(runs) : Collections.<Run>emptySet();
             }
         }
 
         /** Triggers runs as requested by the LoadGenerator for a REGISTERED generator only
+         *  @param gen
          *  @return Number of runs triggered as a result of load check
          */
         public int checkLoadAndTriggerRuns(@Nonnull LoadGenerator gen) {
@@ -484,7 +525,9 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
-        /** Shut down the generator, kill all its queued items, and cancel all its current runs */
+        /** Shut down the generator, kill all its queued items, and cancel all its current runs
+         * @param inputGen
+         */
         public void stopAbruptly(@Nonnull final LoadGenerator inputGen) {
             // Find the appropriate registered generator, don't just blindly use supplied instance
             final LoadGenerator gen = getRegisteredGeneratorbyId(inputGen.generatorId);
@@ -521,7 +564,10 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
-        /** Run began - if generator is registered, track the new run and decrement queued items count for the generator */
+        /** Run began - if generator is registered, track the new run and decrement queued items count for the generator
+         *  @param run
+         *  @param listener
+         */
         @Override
         public void onStarted(@Nonnull Run run, TaskListener listener) {
             String genId = getGeneratorCauseId(run);
@@ -575,7 +621,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
     }
 
     /** Base for all load generators that run jobs */
-    public static abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerator> {
+    public static abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerator> implements ExtensionPoint {
         /** Identifies the generator for causes */
         protected final String generatorId;
 

@@ -114,6 +114,7 @@ public class LoadGenerationTest {
         trivial.start();
         LoadGeneration.GeneratorController controller = LoadGeneration.getGeneratorController();
         controller.registerOrUpdateGenerator(trivial);
+        Assert.assertEquals(trivial, controller.getRegisteredGeneratorbyId(trivial.generatorId));
 
         // Incrementing & Decrementing Queue Item counts & seeing impact on controller & desired run count
         Assert.assertEquals(0, controller.getQueuedCount(trivial));
@@ -169,7 +170,6 @@ public class LoadGenerationTest {
         Jenkins j = jenkinsRule.getInstance();
         trivial.start();
         Assert.assertEquals(8, trivial.getRunsToLaunch(0));
-        // TODO checkLoadAndTriggerRuns test
         controller.maintainLoad(); // triggers one cycle of load generation
         trivial.stop();
         Assert.assertEquals(8, controller.getQueuedAndRunningCount(trivial));
@@ -180,5 +180,34 @@ public class LoadGenerationTest {
         jenkinsRule.waitUntilNoActivityUpTo(2000);
 
         Assert.assertEquals(8,  job.getBuilds().size());
+    }
+
+    @Test
+    public void testTriggerThenUnregisterAndStopGenerator() throws Exception {
+        WorkflowJob job = jenkinsRule.jenkins.createProject(WorkflowJob.class, "TrivialJob");
+        job.setDefinition(new CpsFlowDefinition("node('doesnotexist') {\n" +
+                "echo 'I did something' \n" +
+                "}"));
+        LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 8);
+        Assert.assertEquals(8, trivial.getDesiredRunCount());
+        LoadGeneration.DescriptorImpl desc = LoadGeneration.getDescriptorInstance();
+        LoadGeneration.GeneratorController controller = LoadGeneration.getGeneratorController();
+        controller.registerOrUpdateGenerator(trivial);
+
+        // Check it queued up correctly
+        Jenkins j = jenkinsRule.getInstance();
+        trivial.start();
+        Assert.assertEquals(8, trivial.getRunsToLaunch(0));
+        controller.checkLoadAndTriggerRuns(trivial);
+        trivial.stop();
+        Thread.sleep(1000);  // Slight delay for queue maintenance to happen
+        Assert.assertEquals(8, controller.getQueuedAndRunningCount(trivial));
+        Assert.assertEquals(8, controller.getRunningCount(trivial));
+
+        // Stop and verify really stopped
+        controller.unregisterAndStopGenerator(trivial);
+        Assert.assertEquals(0, controller.getQueuedAndRunningCount(trivial));
+        Assert.assertNull(controller.getRegisteredGeneratorbyId(trivial.generatorId));
+        Assert.assertEquals(8, job.getBuilds().size());
     }
 }

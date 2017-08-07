@@ -2,6 +2,7 @@ package jenkins.plugin.randomjobbuilder;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import hudson.Extension;
 import hudson.model.AbstractDescribableImpl;
 import hudson.model.Cause;
@@ -42,6 +43,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -74,12 +76,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         /** Find generator by its unique ID or return null */
         @CheckForNull
         public LoadGenerator getGeneratorbyId(@Nonnull String generatorId) {
-            for (LoadGenerator lg : loadGenerators) {
-                if (lg.getGeneratorId().equals(generatorId)) {
-                    return lg;
-                }
-            }
-            return null;
+            return getGeneratorController().getRegisteredGeneratorbyId(generatorId);
         }
 
         public void addGenerator(LoadGenerator lg) {
@@ -93,6 +90,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
                 // FIXME need to deactivate any removed generators
                 // FIXME recreates generators rather than reconfiguring existing instances
                 loadGenerators.rebuildHetero(req, json, Jenkins.getActiveInstance().getExtensionList(LoadGenerator.DescriptorBase.class), "loadGenerators");
+                getGeneratorController().synchGenerators(loadGenerators);
                 save();
             } catch (IOException ioe) {
                 throw new RuntimeException("Something failed horribly around descriptors", ioe);
@@ -266,22 +264,21 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         }
     }
 
-    /** Get the generator that triggered a run, or null if it wasn't triggered by one */
+    /** Get the generator ID that triggered a run, or null if it wasn't triggered by one */
     @CheckForNull
-    static LoadGenerator getGeneratorCause(@Nonnull Run run) {
+    static String getGeneratorCauseId(@Nonnull Run run) {
         Cause cause = run.getCause(LoadGeneratorCause.class);
-        if (cause != null) {
-            String generatorId = ((LoadGeneratorCause)cause).getGeneratorId();
-            return getDescriptorInstance().getGeneratorbyId(generatorId);
-        }
-        return null;
+        return (cause != null) ? ((LoadGeneratorCause)cause).getGeneratorId() : null;
     }
 
     public static GeneratorController getGeneratorController() {
         return Jenkins.getActiveInstance().getExtensionList(GeneratorController.class).get(0);
     }
 
-    /** Registers run for lookup, so we know which ones to kill if we stop load suddenly...
+    /**
+     * Controls load generation for an input set of runs, by watching a registered set of LoadGenerators
+     * And using listeners to add/remove tasks as desired
+     * Registers run for lookup, so we know which ones to kill if we stop load suddenly...
      *   or in which cases we need to start new jobs to maintain load level
      *
      *   And triggers new builds when needed
@@ -291,12 +288,50 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
     @Restricted(NoExternalUse.class)
     @Extension
     public static class GeneratorController extends RunListener<Run> {
+        private boolean autostart = false;
+
         // FIXME the accounting for tasks is broken, sometimes it overcounts, sometimes it undercounts.
+        ConcurrentHashMap<String, LoadGenerator> registeredGenerators = new ConcurrentHashMap<String, LoadGenerator>();
 
         ConcurrentHashMap<LoadGenerator, AtomicInteger> queueTaskCount = new ConcurrentHashMap<>();
 
         /** Needed in order to cancel runs in progress */
         ConcurrentHashMap<LoadGenerator, Collection<Run>> generatorToRuns = new ConcurrentHashMap<>();
+
+        /** Register all listed generators if not already present*/
+        public void registerGenerator(@Nonnull LoadGenerator generator) {
+            registeredGenerators.putIfAbsent(generator.getGeneratorId(), generator);
+        }
+
+        public void unregisterGenerator(@Nonnull LoadGenerator generator) {
+            synchronized (generator) {
+                generator.stop();
+                this.stopAbruptly(generator);
+                registeredGenerators.remove(generator);
+            }
+        }
+
+        /** Find generator by its unique ID or return null */
+        @CheckForNull
+        public LoadGenerator getRegisteredGeneratorbyId(@Nonnull String generatorId) {
+            return registeredGenerators.get(generatorId);
+        }
+
+        /** Ensure that the registered generators match input set, registering any new ones and unregistering ones not in input,
+         *  which will kill any jobs or tasks linked to them */
+        public synchronized void synchGenerators(@Nonnull Collection<LoadGenerator> generators) {
+            Set<String> registeredSet = registeredGenerators.keySet();
+            Set<LoadGenerator> inputSet = new HashSet<LoadGenerator>(generators);
+
+            for (String generatorId : Sets.difference(registeredSet, inputSet)) {
+                unregisterGenerator(registeredGenerators.get(generatorId));
+            }
+
+            for (LoadGenerator lg : generators) {
+                registerGenerator(lg);
+            }
+        }
+
 
         public void addQueueItem(@Nonnull LoadGenerator generator) {
             synchronized (generator) {
@@ -377,9 +412,14 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
-        /** Triggers runs as requested by the LoadGenerator */
-        public int triggerRuns(@Nonnull LoadGenerator gen) {
+        /** Triggers runs as requested by the LoadGenerator for a REGISTERED generator only
+         *  @return Number of runs triggered as a result of load check
+         */
+        public int checkLoadAndTriggerRuns(@Nonnull LoadGenerator gen) {
             synchronized (gen) {
+                if (!registeredGenerators.containsKey(gen.getGeneratorId())) {
+                    return 0; // Not a registered generator
+                }
                 int count = getQueuedAndRunningCount(gen);
                 int launchCount = gen.getRunsToLaunch(count);
                 List<Job> candidates = gen.getCandidateJobs();
@@ -392,8 +432,9 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
-        // TODO delegate somehow to the LoadGenerator for how it's going to create new runs
+        /** Shut down the generator, kill all its queued items, and cancel all its current runs */
         public void stopAbruptly(@Nonnull final LoadGenerator gen) {
+            gen.stop();
             SecurityContext context;
             synchronized (gen) {
                 ACL.impersonate(ACL.SYSTEM, new Runnable() {
@@ -417,36 +458,54 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
+        /** Triggers load as needed for all the registered generators */
+        public void maintainLoad() {
+            for (LoadGenerator lg : registeredGenerators.values()) {
+                if (lg.isActive()) {
+                    this.checkLoadAndTriggerRuns(lg);
+                }
+            }
+        }
+
+        /** Run began - if generator is registered, track the new run and decrement queued items count for the generator */
         @Override
         public void onStarted(@Nonnull Run run, TaskListener listener) {
-            // FIXME this doesn't seem to be enough to correctly handle Queue.item accounting
-            // when combined with item
-            LoadGenerator generator = getGeneratorCause(run);
-            if (generator != null) {
-                synchronized (generator) {
-                    removeQueueItem(generator);
-                    addRun(generator, run);
+            String genId = getGeneratorCauseId(run);
+            LoadGenerator gen = null;
+            if (genId != null) {
+                gen = registeredGenerators.get(genId);
+            }
+            if (gen != null) {
+                synchronized (gen) {
+                    removeQueueItem(gen);
+                    addRun(gen, run);
                 }
             }
         }
 
         @Override
         public void onFinalized(@Nonnull Run run) {
-            LoadGeneratorCause cause = (LoadGeneratorCause)(run.getCause(LoadGeneratorCause.class));
-            if (cause != null) {
-                LoadGenerator gen = getDescriptorInstance().getGeneratorbyId(cause.getGeneratorId());
-                if (gen != null) {
-                    removeRun(gen, run);
-                    triggerRuns(gen);
-                }
+            String generatorId = getGeneratorCauseId(run);
+            if (generatorId != null && registeredGenerators.containsKey(generatorId)) {
+                LoadGenerator gen = registeredGenerators.get(generatorId);
+                removeRun(gen, run);
+                checkLoadAndTriggerRuns(gen);
             }
+        }
+
+        public boolean isAutostart() {
+            return autostart;
+        }
+
+        public void setAutostart(boolean autostart) {
+            this.autostart = autostart;
         }
     }
 
     /** Periodically starts up load again if toggled */
     @Extension
     public static class PeriodicWorkImpl extends PeriodicWork {
-        GeneratorController controller = Jenkins.getActiveInstance().getExtensionList(GeneratorController.class).get(0);
+        GeneratorController controller = getGeneratorController();
 
         @Override
         public long getRecurrencePeriod() {
@@ -455,16 +514,8 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
         @Override
         protected void doRun() throws Exception {
-            LoadGeneration.DescriptorImpl impl = Jenkins.getActiveInstance().getExtensionList(LoadGeneration.DescriptorImpl.class).get(0);
-            if (impl != null) {
-                List<LoadGenerator> loadGenerators = impl.loadGenerators;
-                for (LoadGenerator lg : loadGenerators) {
-                    if (lg.isActive()) {
-                        controller.triggerRuns(lg);
-                    }
-                }
-            } else {
-                throw new RuntimeException("Something wicked this descriptor causes");
+            if (controller.isAutostart()) {
+                controller.maintainLoad();
             }
         }
     }

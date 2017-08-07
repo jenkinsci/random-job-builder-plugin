@@ -61,16 +61,6 @@ public class LoadGenerationTest {
     }
 
     @Test
-    public void testLoadGenerationDescriptor() throws Exception {
-        LoadGeneration.DescriptorImpl desc = LoadGeneration.getDescriptorInstance();
-        LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 1);
-        desc.addGenerator(trivial);
-
-        assertTrue(desc.getLoadGenerators().contains(trivial));
-        assertEquals(trivial, desc.getGeneratorbyId(trivial.getGeneratorId()));
-    }
-
-    @Test
     public void testTrivialLoadGeneratorStart() throws Exception {
         WorkflowJob job = jenkinsRule.jenkins.createProject(WorkflowJob.class, "TrivialJob");
         job.setDefinition(new CpsFlowDefinition("echo 'I did something' "));
@@ -95,7 +85,8 @@ public class LoadGenerationTest {
                 "sleep 1"));
         LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 1);
         LoadGeneration.DescriptorImpl desc = LoadGeneration.getDescriptorInstance();
-        desc.addGenerator(trivial);
+        LoadGeneration.getGeneratorController().registerGenerator(trivial);
+        LoadGeneration.getGeneratorController().setAutostart(true);
 
         Jenkins j = jenkinsRule.getInstance();
         trivial.start();
@@ -122,6 +113,7 @@ public class LoadGenerationTest {
         LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 8);
         trivial.start();
         LoadGeneration.GeneratorController controller = LoadGeneration.getGeneratorController();
+        controller.registerGenerator(trivial);
 
         // Incrementing & Decrementing Queue Item counts & seeing impact on controller & desired run count
         Assert.assertEquals(0, controller.getQueuedCount(trivial));
@@ -170,12 +162,13 @@ public class LoadGenerationTest {
         LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 8);
         Assert.assertEquals(8, trivial.getDesiredRunCount());
         LoadGeneration.DescriptorImpl desc = LoadGeneration.getDescriptorInstance();
-        desc.addGenerator(trivial);
+        LoadGeneration.getGeneratorController().registerGenerator(trivial);
 
         // Check it queued up correctly
         Jenkins j = jenkinsRule.getInstance();
         trivial.start();
         Assert.assertEquals(8, trivial.getRunsToLaunch(0));
+        LoadGeneration.getGeneratorController().setAutostart(true);
         Thread.sleep(4000L);
         LoadGeneration.GeneratorController controller = LoadGeneration.getGeneratorController();
         Assert.assertEquals(8, controller.getQueuedAndRunningCount(trivial));

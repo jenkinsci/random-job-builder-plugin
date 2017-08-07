@@ -1,10 +1,13 @@
 package jenkins.plugin.randomjobbuilder;
 
 import hudson.model.Job;
+import hudson.model.labels.LabelAtom;
+import hudson.model.queue.QueueTaskFuture;
 import hudson.tasks.LogRotator;
 import jenkins.model.Jenkins;
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
+import org.jenkinsci.plugins.workflow.job.WorkflowRun;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -105,5 +108,84 @@ public class LoadGenerationTest {
         Thread.sleep(6000L);
 
         Assert.assertFalse(job.getLastBuild().isBuilding());
+    }
+
+    @Test
+    public void testControllerBasics() throws Exception {
+        WorkflowJob job = jenkinsRule.jenkins.createProject(WorkflowJob.class, "TrivialJob");
+        job.setDefinition(new CpsFlowDefinition("node('doesnotexist') {\n" +
+                "echo 'I did something' \n" +
+                "}"));
+
+        // Generator is unregistered as part of LoadGeneration.DescriptorImpl.generators
+        // So it doesn't automatically start creating load
+        LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 8);
+        trivial.start();
+        LoadGeneration.GeneratorController controller = LoadGeneration.getGeneratorController();
+
+        // Incrementing & Decrementing Queue Item counts & seeing impact on controller & desired run count
+        Assert.assertEquals(0, controller.getQueuedCount(trivial));
+        Assert.assertEquals(0, controller.getQueuedAndRunningCount(trivial));
+        Assert.assertEquals(8, trivial.getRunsToLaunch(0));
+        controller.addQueueItem(trivial);
+        Assert.assertEquals(1, controller.getQueuedCount(trivial));
+        Assert.assertEquals(1, controller.getQueuedAndRunningCount(trivial));
+        Assert.assertEquals(7, trivial.getRunsToLaunch(1));
+        controller.removeQueueItem(trivial);
+        Assert.assertEquals(0, controller.getQueuedCount(trivial));
+        trivial.stop();
+
+        // Simulate having queued an item, then run a job, then see if the controller picks it up as if the job started running
+        controller.addQueueItem(trivial);
+        QueueTaskFuture qtf = LoadGeneration.launchJob(trivial, job, 0);
+
+        long started = System.currentTimeMillis();
+        long maxWait = 1000L;
+        while (job.getLastBuild() == null) {
+            if ((System.currentTimeMillis()-started) >= maxWait) {
+                Assert.fail("Job didn't start in a timely fashion!");
+            }
+            Thread.sleep(100);
+        }
+
+        WorkflowRun run = (WorkflowRun)(job.getLastBuild());
+        Assert.assertEquals(0, controller.getQueuedCount(trivial)); // Once we start running, item no longer just queued
+        Assert.assertEquals(1, controller.getRunningCount(trivial)); // ...and is now running
+        Assert.assertEquals(1, controller.getQueuedAndRunningCount(trivial));
+        Assert.assertEquals(0, trivial.getRunsToLaunch(1));
+
+        // Kill the job and verify counts were decremented appropriately
+        run.doKill();
+        jenkinsRule.waitUntilNoActivity();
+        Assert.assertEquals(0, controller.getRunningCount(trivial));
+        Assert.assertEquals(0, controller.getQueuedAndRunningCount(trivial));
+    }
+
+    @Test
+    public void testControllerQueueing() throws Exception {
+        WorkflowJob job = jenkinsRule.jenkins.createProject(WorkflowJob.class, "TrivialJob");
+        job.setDefinition(new CpsFlowDefinition("node('doesnotexist') {\n" +
+                "echo 'I did something' \n" +
+                "}"));
+        LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 8);
+        Assert.assertEquals(8, trivial.getDesiredRunCount());
+        LoadGeneration.DescriptorImpl desc = LoadGeneration.getDescriptorInstance();
+        desc.addGenerator(trivial);
+
+        // Check it queued up correctly
+        Jenkins j = jenkinsRule.getInstance();
+        trivial.start();
+        Assert.assertEquals(8, trivial.getRunsToLaunch(0));
+        Thread.sleep(4000L);
+        LoadGeneration.GeneratorController controller = LoadGeneration.getGeneratorController();
+        Assert.assertEquals(8, controller.getQueuedAndRunningCount(trivial));
+        Thread.sleep(200L);
+
+        // Disable generator and verify it doesn't run any more
+        trivial.stop();
+        jenkinsRule.createOnlineSlave(new LabelAtom("doesnotexist"));
+        jenkinsRule.waitUntilNoActivityUpTo(1000);
+
+        Assert.assertEquals(8,  job.getBuilds().size());
     }
 }

@@ -221,7 +221,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
     /**
      * Convenience: pick a random job from list to run
      * @param candidates
-     * @return
+     * @return Candidate job to run, or null if none in the inputs
      */
     @CheckForNull
     static Job pickRandomJob(@Nonnull List<Job> candidates) {
@@ -271,6 +271,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         }
     }
 
+    @Nonnull
     static Collection<Queue.Item> getQueueItemsFromLoadGenerator(@Nonnull final LoadGenerator generator) {
         SecurityContext old = null;
         try {
@@ -509,6 +510,10 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
          */
         public int checkLoadAndTriggerRuns(@Nonnull LoadGenerator gen) {
             LoadGenerator registeredGen = getRegisteredGeneratorbyId(gen.generatorId);
+            if (registeredGen == null) {
+                // Not a registered generator, bomb out
+                return 0;
+            }
             synchronized (registeredGen) {
                 if (!registeredGenerators.containsKey(registeredGen.getGeneratorId())) {
                     return 0; // Not a registered generator
@@ -516,10 +521,15 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
                 int count = getQueuedAndRunningCount(registeredGen);
                 int launchCount = registeredGen.getRunsToLaunch(count);
                 List<Job> candidates = registeredGen.getCandidateJobs();
+                if (candidates == null || candidates.size() == 0) {
+                    return 0;  // Can't trigger
+                }
                 for (int i=0; i<launchCount; i++) {
                     Job j = pickRandomJob(candidates);
-                    QueueTaskFuture<? extends Run> qtf = launchJob(registeredGen, j, 0);
-                    addQueueItem(registeredGen);
+                    if (j != null) {
+                        QueueTaskFuture<? extends Run> qtf = launchJob(registeredGen, j, 0);
+                        addQueueItem(registeredGen);
+                    }
                 }
                 return launchCount;
             }
@@ -531,6 +541,9 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         public void stopAbruptly(@Nonnull final LoadGenerator inputGen) {
             // Find the appropriate registered generator, don't just blindly use supplied instance
             final LoadGenerator gen = getRegisteredGeneratorbyId(inputGen.generatorId);
+            if (gen == null) {
+                return;
+            }
             gen.stop();
             SecurityContext context;
             synchronized (gen) {

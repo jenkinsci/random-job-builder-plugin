@@ -151,6 +151,7 @@ public class LoadGenerationTest {
 
         // Kill the job and verify counts were decremented appropriately
         controller.stopAbruptly(trivial);
+        Thread.sleep(100);
         Assert.assertEquals(0, jenkinsRule.jenkins.getQueue().getItems().length);
         Assert.assertEquals(0, controller.getRunningCount(trivial));
         Assert.assertEquals(0, controller.getQueuedAndRunningCount(trivial));

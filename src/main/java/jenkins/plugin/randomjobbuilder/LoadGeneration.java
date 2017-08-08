@@ -380,7 +380,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
          *  which will kill any jobs or tasks linked to them
          *  @param generators List of generators to add/remove/update
          */
-        public synchronized void synchGenerators(@Nonnull Collection<LoadGenerator> generators) {
+        public synchronized void synchGenerators(@Nonnull List<LoadGenerator> generators) {
             Set<LoadGenerator> registeredSet = new HashSet<LoadGenerator>(registeredGenerators.values());
             Set<LoadGenerator> inputSet = new HashSet<LoadGenerator>(generators);
 
@@ -636,9 +636,10 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
     /** Base for all load generators that run jobs */
     public static abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerator> implements ExtensionPoint {
         /** Identifies the generator for causes */
-        protected final String generatorId;
+        String generatorId;
 
         protected CurrentTestMode currentTestMode = CurrentTestMode.IDLE;
+
 
         public CurrentTestMode getCurrentTestMode() {
             return currentTestMode;
@@ -657,6 +658,12 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             return generatorId;
         }
 
+        @DataBoundSetter
+        @Restricted(NoExternalUse.class)
+        public void setGeneratorId(String generatorId) {
+            this.generatorId = generatorId;
+        }
+
         public boolean isActive() {
             return getCurrentTestMode() == CurrentTestMode.RAMP_UP || getCurrentTestMode() == CurrentTestMode.LOAD_TEST;
         }
@@ -666,7 +673,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
          */
         public int getRunsToLaunch(int currentRuns) {
             if (isActive()) {
-                return getDesiredRunCount()-currentRuns;
+                return getConcurrentRunCount()-currentRuns;
             }
             return 0;
         }
@@ -690,7 +697,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
          * Get the intended number of concurrent runs at once
          * @return -1 for unlimited, 0 if none, or positive integer for intended count
          */
-        public abstract int getDesiredRunCount();
+        public abstract int getConcurrentRunCount();
 
         /** Descriptors neeed to extend this */
         @Extension
@@ -735,7 +742,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
         private String jobNameRegex = null;
 
-        private int desiredRunCount = 1;
+        private int concurrentRunCount = 1;
 
         @Override
         public List<Job> getCandidateJobs() {
@@ -780,14 +787,18 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             this.jobNameRegex = jobNameRegex;
         }
 
-        @Override
-        public int getDesiredRunCount() {
-            return desiredRunCount;
+        public int getConcurrentRunCount() {
+            return concurrentRunCount;
         }
 
         @DataBoundSetter
-        public void setDesiredRunCount(int desiredRunCount) {
-            this.desiredRunCount = desiredRunCount;
+        public void setConcurrentRunCount(int concurrentRunCount) {
+            this.concurrentRunCount = concurrentRunCount;
+        }
+
+        @DataBoundSetter
+        public void setGeneratorId(@Nonnull String generatorId) {
+            super.setGeneratorId(generatorId);
         }
 
         @DataBoundConstructor
@@ -795,12 +806,12 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
         }
 
-        public TrivialLoadGenerator(@CheckForNull String jobNameRegex, int desiredRunCount) {
+        public TrivialLoadGenerator(@CheckForNull String jobNameRegex, int concurrentRunCount) {
             setJobNameRegex(jobNameRegex);
-            if (desiredRunCount < 0) {  // TODO Jelly form validation to reject this
-                this.desiredRunCount = 1;
+            if (concurrentRunCount < 0) {  // TODO Jelly form validation to reject this
+                this.concurrentRunCount = 1;
             } else {
-                this.desiredRunCount = desiredRunCount;
+                this.concurrentRunCount = concurrentRunCount;
             }
         }
 

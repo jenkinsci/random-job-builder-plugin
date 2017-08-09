@@ -116,6 +116,17 @@ public abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerato
         return 0;
     }
 
+    /** Copy over internal state information from a newly configured instance of the same {@link LoadGenerator} type.
+     *  This is to allow users to reconfigure load generators on the fly without removing and recreating them.
+     *  This is *probably* a workaround until we can get this to correctly use {@link hudson.model.ReconfigurableDescribable}
+     *
+     *  Classes extending LoadGenerator should call super() on this
+     */
+     void copyStateFrom(LoadGenerator original) {
+         this.loadTestMode = original.getLoadTestMode();
+     }
+
+
     public abstract List<Job> getCandidateJobs();
 
     /** Begin running load test and then switch to full load

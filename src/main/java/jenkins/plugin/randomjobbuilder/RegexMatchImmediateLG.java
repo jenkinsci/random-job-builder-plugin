@@ -14,8 +14,8 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.regex.Pattern;
 
-/** Simple job runner that immediately starts them and keeps restarting then they finish or die */
-public class TrivialLoadGenerator extends LoadGenerator {
+/** LoadGenerator that selects jobs matching a regex and starts load immediately */
+public class RegexMatchImmediateLG extends LoadGenerator {
 
     private String jobNameRegex = null;
 
@@ -64,11 +64,11 @@ public class TrivialLoadGenerator extends LoadGenerator {
     }
 
     @DataBoundConstructor
-    public TrivialLoadGenerator() {
+    public RegexMatchImmediateLG() {
 
     }
 
-    public TrivialLoadGenerator(@CheckForNull String jobNameRegex, int concurrentRunCount) {
+    public RegexMatchImmediateLG(@CheckForNull String jobNameRegex, int concurrentRunCount) {
         setJobNameRegex(jobNameRegex);
         this.concurrentRunCount = concurrentRunCount;
     }
@@ -78,7 +78,7 @@ public class TrivialLoadGenerator extends LoadGenerator {
 
         @Override
         public String getDisplayName() {
-            return "Trivial Filtered Job Builder";
+            return "Jobs by regex match, immediate load";
         }
     }
 

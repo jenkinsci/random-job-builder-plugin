@@ -74,6 +74,31 @@ public class LoadGeneratorAction implements Action, AccessControlled, ModelObjec
         }
     }
 
+    /**
+     * Toggle generator from started to stopped and vice versa, selecting it by short name (human readable)
+     * Useful for automation access by POST to $jenkinsUrl/loadgenerator/toggleNamedGenerator?shortName=$myName
+     * @param req
+     * @param shortName Short name of {@link LoadGenerator}, see {@link LoadGenerator#getShortName()}
+     * @return Response code
+     */
+    @RequirePOST
+    public HttpResponse doToggleNamedGenerator(StaplerRequest req, @QueryParameter String shortName) {
+        Jenkins.getActiveInstance().checkPermission(USE_PERMISSION);
+        if (StringUtils.isEmpty(shortName)) {
+            return HttpResponses.errorWithoutStack(500, "You must supply a short name");
+        } else {
+            LoadGenerator gen = getController().getRegisteredGeneratorbyShortName(shortName);
+            if (gen == null) {
+                return HttpResponses.errorWithoutStack(500, "Unrecognized short name "+shortName);
+            }
+            if (gen.isActive()) {
+                gen.stop();
+            } else {
+                gen.start();
+            } return HttpResponses.redirectToDot();
+        }
+    }
+
     public ModelObject getContext() {
         return context;
     }

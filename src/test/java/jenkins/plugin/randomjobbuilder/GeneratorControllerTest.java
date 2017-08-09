@@ -1,6 +1,5 @@
 package jenkins.plugin.randomjobbuilder;
 
-import hudson.model.Job;
 import hudson.model.labels.LabelAtom;
 import hudson.tasks.LogRotator;
 import jenkins.model.Jenkins;
@@ -30,7 +29,7 @@ public class GeneratorControllerTest {
         job.setBuildDiscarder(new LogRotator(-1, 20, -1, 40));
         job.setDefinition(new CpsFlowDefinition("echo 'I did something' \n" +
                 "sleep 1"));
-        TrivialLoadGenerator trivial = new TrivialLoadGenerator(".*", 1);
+        RegexMatchImmediateLG trivial = new RegexMatchImmediateLG(".*", 1);
         LoadGeneration.DescriptorImpl desc = LoadGeneration.getDescriptorInstance();
         GeneratorController.getInstance().registerOrUpdateGenerator(trivial);
         GeneratorController.getInstance().setAutostart(true);
@@ -57,7 +56,7 @@ public class GeneratorControllerTest {
 
         // Generator is unregistered as part of LoadGeneration.DescriptorImpl.generators
         // So it doesn't automatically start creating load
-        TrivialLoadGenerator trivial = new TrivialLoadGenerator(".*", 8);
+        RegexMatchImmediateLG trivial = new RegexMatchImmediateLG(".*", 8);
         trivial.start();
         GeneratorController controller = GeneratorController.getInstance();
         controller.registerOrUpdateGenerator(trivial);
@@ -108,7 +107,7 @@ public class GeneratorControllerTest {
         job.setDefinition(new CpsFlowDefinition("node('doesnotexist') {\n" +
                 "echo 'I did something' \n" +
                 "}"));
-        TrivialLoadGenerator trivial = new TrivialLoadGenerator(".*", 8);
+        RegexMatchImmediateLG trivial = new RegexMatchImmediateLG(".*", 8);
         Assert.assertEquals(8, trivial.getConcurrentRunCount());
         LoadGeneration.DescriptorImpl desc = LoadGeneration.getDescriptorInstance();
         GeneratorController controller = GeneratorController.getInstance();
@@ -135,9 +134,9 @@ public class GeneratorControllerTest {
         GeneratorController controller = GeneratorController.getInstance();
         controller.setAutostart(false);
 
-        TrivialLoadGenerator trivial = new TrivialLoadGenerator(".*", 8);
+        RegexMatchImmediateLG trivial = new RegexMatchImmediateLG(".*", 8);
         trivial.start();
-        TrivialLoadGenerator trivial2 = new TrivialLoadGenerator(".*foo", 4);
+        RegexMatchImmediateLG trivial2 = new RegexMatchImmediateLG(".*foo", 4);
         trivial2.setGeneratorId(trivial.generatorId);
         trivial2.stop();
 
@@ -160,7 +159,7 @@ public class GeneratorControllerTest {
         job.setDefinition(new CpsFlowDefinition("node('doesnotexist') {\n" +
                 "echo 'I did something' \n" +
                 "}"));
-        TrivialLoadGenerator trivial = new TrivialLoadGenerator(".*", 8);
+        RegexMatchImmediateLG trivial = new RegexMatchImmediateLG(".*", 8);
         Assert.assertEquals(8, trivial.getConcurrentRunCount());
         LoadGeneration.DescriptorImpl desc = LoadGeneration.getDescriptorInstance();
         GeneratorController controller = GeneratorController.getInstance();

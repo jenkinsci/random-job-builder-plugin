@@ -53,14 +53,14 @@ public class GeneratorController extends RunListener<Run> {
 
     /** Register the generator in {@link #registeredGenerators} or
      *   replace existing generator with the same generator ID
-     *   FIXME Replace with hidden fields and/or {@link ReconfigurableDescribable}
+     *   Eventually we'll just use {@link ReconfigurableDescribable} for direct updates of generator lists.
      *   @param generator Generator to register/update
      */
     public void registerOrUpdateGenerator(@Nonnull LoadGenerator generator) {
         LoadGenerator previous = registeredGenerators.put(generator.getGeneratorId(), generator);
         synchronized (generator) {
             if (previous != null) {  // Copy some transitory state in, but honestly this is a hack
-                generator.loadTestMode = previous.loadTestMode;
+                generator.copyStateFrom(previous);
             }
         }
     }
@@ -88,6 +88,19 @@ public class GeneratorController extends RunListener<Run> {
     @CheckForNull
     public LoadGenerator getRegisteredGeneratorbyId(@Nonnull String generatorId) {
         return registeredGenerators.get(generatorId);
+    }
+
+    /** Find generator by its unique ID or return null if not registered
+     * @param shortName ID of registered generator
+     */
+    @CheckForNull
+    public LoadGenerator getRegisteredGeneratorbyShortName(@Nonnull String shortName) {
+        for (LoadGenerator lg : registeredGenerators.values()) {
+            if (lg.getShortName().equals(shortName)) {
+                return lg;
+            }
+        }
+        return null;
     }
 
     /** Ensure that the registered generators match input set, registering any new ones and unregistering ones not in input,

@@ -3,52 +3,56 @@
     <l:layout title="${it.displayName}">
         <st:include it="${it.context}" page="sidepanel.jelly"/>
         <l:main-panel>
-            <a href="${it.getRootUrl()}configure">See configuration section for Load Generators</a>
-            <!-- Toggle autostart on/off -->
-            <p/>Autostart is: ${it.controller.autostart}
-            <form method="post" action="autostart?autostartState=${!it.controller.autostart}">
-                <f:submit value="Toggle"></f:submit>
-            </form>
-
             <h1>Load Generator Controller</h1>
-            <table class="sortable pane bigtable">
-            <tr style="border-top: 0px;">
-                <th>
-                    ${%Active}
-                </th>
-                <th width="20%" initialsortdir="down">
-                    ${%ID}
-                </th>
-                <th>
-                    ${%ConcurrentCount}
-                </th>
-                <th>
-                    ${%Filter}
-                </th>
-                <th>
-                    ${%Queued}
-                </th>
-                <th>
-                    ${%Running}
-                </th>
-            </tr>
-            <j:forEach var="gen" items="${it.controller.registeredGenerators}">
-                <tr>
-                    <td>
-                        <form method="post" action="toggleGenerator?generatorId=${gen.generatorId}">
-                            Active: <strong>${gen.active}</strong>
-                            <br/>
-                            <f:submit value="Toggle"></f:submit>
-                        </form>
-                    </td>
-                    <td>${gen.generatorId}</td>
-                    <td>${gen.concurrentRunCount}</td>
-                    <td>${gen.jobNameRegex}</td>
-                    <td>${it.controller.getQueuedCount(gen)}</td>
-                    <td>${it.controller.getRunningCount(gen)}</td>
+            <f:section title="Global Autostart">
+                <!-- Toggle autostart on/off -->
+                <form method="post" action="autostart?autostartState=${!it.controller.autostart}">
+                    <f:submit value="Autostart: ${it.controller.autostart}"></f:submit>
+                </form>
+            </f:section>
+            <br/>
+
+            <f:section title="Individual Generators">
+                <a href="${it.getRootUrl()}configure">See configuration section for Load Generators</a>
+                <p/>
+                <table class="sortable pane bigtable">
+                <tr style="border-top: 0px;">
+                    <th>
+                        ${%Active}
+                    </th>
+                    <th width="20%" initialsortdir="down">
+                        ${%ID}
+                    </th>
+                    <th>
+                        ${%ConcurrentCount}
+                    </th>
+                    <th>
+                        ${%Filter}
+                    </th>
+                    <th>
+                        ${%Queued}
+                    </th>
+                    <th>
+                        ${%Running}
+                    </th>
                 </tr>
-            </j:forEach>
-            </table>
+                <j:forEach var="gen" items="${it.controller.registeredGenerators}">
+                    <tr>
+                        <td>
+                            <!-- Prettier: try  HTML/CSS switch per https://www.w3schools.com/howto/howto_css_switch.asp -->
+                            <form method="post" action="toggleGenerator?generatorId=${gen.generatorId}">
+                                <f:submit value="Active: ${gen.active}"></f:submit>
+                            </form>
+                        </td>
+                        <td>${gen.generatorId}</td>
+                        <td>${gen.concurrentRunCount}</td>
+                        <td>${gen.jobNameRegex}</td>
+                        <td>${it.controller.getQueuedCount(gen)}</td>
+                        <td>${it.controller.getRunningCount(gen)}</td>
+                    </tr>
+                </j:forEach>
+                </table>
+            </f:section>
         </l:main-panel>
     </l:layout>
 </j:jelly>

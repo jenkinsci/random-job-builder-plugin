@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 /**
+ * Provides the LoadGenerator controller view, APIs for the UI, and externalizable HTTP APIs to control generators
  * @author Sam Van Oort
  */
 @Restricted(NoExternalUse.class)

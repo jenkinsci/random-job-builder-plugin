@@ -57,7 +57,8 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         @Override
         public boolean configure(StaplerRequest req, JSONObject json) throws FormException {
             try {
-                // FIXME recreates generators rather than reconfiguring existing instances
+                // TODO Revisit my attempt at using ReconfigurableDescribable to reconfigure existing instances
+                // Instead of making new ones
                 loadGenerators.rebuildHetero(req, json, Jenkins.getActiveInstance().getExtensionList(LoadGenerator.DescriptorBase.class), "loadGenerators");
                 GeneratorController.getInstance().synchGenerators(loadGenerators);
                 save();

@@ -37,6 +37,8 @@ import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.HttpResponses;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.export.Exported;
+import org.kohsuke.stapler.export.ExportedBean;
 import org.kohsuke.stapler.interceptor.RequirePOST;
 
 import javax.annotation.CheckForNull;
@@ -639,6 +641,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
     }
 
     /** Base for all load generators that run jobs */
+    @ExportedBean
     public static abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerator> implements ExtensionPoint {
         /** Identifies the generator for causes */
         String generatorId;
@@ -646,6 +649,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         protected CurrentTestMode currentTestMode = CurrentTestMode.IDLE;
 
 
+        @Exported
         public CurrentTestMode getCurrentTestMode() {
             return currentTestMode;
         }
@@ -659,6 +663,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         }
 
         @Nonnull
+        @Exported
         public String getGeneratorId() {
             return generatorId;
         }
@@ -702,6 +707,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
          * Get the intended number of concurrent runs at once
          * @return -1 for unlimited, 0 if none, or positive integer for intended count
          */
+        @Exported
         public abstract int getConcurrentRunCount();
 
         /** Descriptors neeed to extend this */
@@ -754,22 +760,6 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             return LoadGeneration.filterJobsByCondition(new JobNameFilter(jobNameRegex));
         }
 
-        /** Start load generation */
-        @RequirePOST
-        public HttpResponse doBegin(StaplerRequest request) {
-            // FIXME admin acl check
-            this.start();
-            return HttpResponses.ok();
-        }
-
-        /** Stop load generation */
-        @RequirePOST
-        public HttpResponse doEnd(StaplerRequest request) {
-            // FIXME admin acl check
-            this.stop();
-            return HttpResponses.ok();
-        }
-
         @Override
         public CurrentTestMode start() {
             this.currentTestMode = CurrentTestMode.LOAD_TEST;
@@ -783,6 +773,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
         }
 
 
+        @Exported
         public String getJobNameRegex() {
             return jobNameRegex;
         }
@@ -813,11 +804,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
         public TrivialLoadGenerator(@CheckForNull String jobNameRegex, int concurrentRunCount) {
             setJobNameRegex(jobNameRegex);
-            if (concurrentRunCount < 0) {  // TODO Jelly form validation to reject this
-                this.concurrentRunCount = 1;
-            } else {
-                this.concurrentRunCount = concurrentRunCount;
-            }
+            this.concurrentRunCount = concurrentRunCount;
         }
 
         @Extension

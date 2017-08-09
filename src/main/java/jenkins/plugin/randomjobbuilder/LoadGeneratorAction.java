@@ -1,7 +1,6 @@
 package jenkins.plugin.randomjobbuilder;
 
 import hudson.Extension;
-import hudson.model.AbstractModelObject;
 import hudson.model.Action;
 import hudson.model.ModelObject;
 import hudson.model.RootAction;
@@ -9,15 +8,20 @@ import hudson.model.TopLevelItem;
 import hudson.security.ACL;
 import hudson.security.AccessControlled;
 import hudson.security.Permission;
+import hudson.util.HttpResponses;
 import jenkins.model.Jenkins;
 import jenkins.model.ModelObjectWithContextMenu;
 import jenkins.model.TransientActionFactory;
 import org.acegisecurity.AccessDeniedException;
 import org.acegisecurity.Authentication;
-import org.jenkins.ui.icon.IconSpec;
+import org.apache.commons.lang.StringUtils;
+import org.kohsuke.stapler.HttpResponse;
+import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
+import org.kohsuke.stapler.WebMethod;
 import org.kohsuke.stapler.export.ExportedBean;
+import org.kohsuke.stapler.interceptor.RequirePOST;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
@@ -26,9 +30,7 @@ import java.util.Collections;
 /**
  * @author Sam Van Oort
  */
-@ExportedBean
 public class LoadGeneratorAction implements Action, AccessControlled, ModelObjectWithContextMenu {
-    public static final Permission VIEW = Jenkins.ADMINISTER;
 
     /**
      * The context in which this {@link LoadGeneratorAction} was created.
@@ -37,6 +39,29 @@ public class LoadGeneratorAction implements Action, AccessControlled, ModelObjec
 
     public LoadGeneration.GeneratorController getController() {
         return LoadGeneration.getGeneratorController();
+    }
+
+    @RequirePOST
+    public HttpResponse doAutostart(StaplerRequest req, @QueryParameter boolean autostartState) {
+        getController().setAutostart(autostartState);
+        return HttpResponses.ok();
+    }
+
+    @RequirePOST
+    public HttpResponse doToggleGenerator(StaplerRequest req, @QueryParameter String generatorId) {
+        if (StringUtils.isEmpty(generatorId)) {
+            return HttpResponses.errorWithoutStack(500, "You must supply a generator ID");
+        } else {
+            LoadGeneration.LoadGenerator gen = getController().getRegisteredGeneratorbyId(generatorId);
+            if (gen == null) {
+                return HttpResponses.errorWithoutStack(500, "Invalid Generator ID "+generatorId);
+            }
+            if (gen.isActive()) {
+                gen.stop();
+            } else {
+                gen.start();
+            } return HttpResponses.ok();
+        }
     }
 
     public ModelObject getContext() {

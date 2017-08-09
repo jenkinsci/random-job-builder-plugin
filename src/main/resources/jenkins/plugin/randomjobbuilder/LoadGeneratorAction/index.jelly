@@ -3,18 +3,19 @@
     <l:layout title="${it.displayName}">
         <st:include it="${it.context}" page="sidepanel.jelly"/>
         <l:main-panel>
-            <!-- Link to configure page -->
+            <!-- TODO link to configure page -->
+
             <!-- Toggle autostart on/off -->
             Autostart is: ${it.controller.autostart}
-            <span class="copy-button">
-                <button type="button">Click Me!</button>
-            </span>
+            <form method="post" action="autostart?autostartState=${!it.controller.autostart}">
+                <f:submit value="Toggle"></f:submit>
+            </form>
+
             <h1>Load Generator Controller</h1>
             <table class="sortable pane bigtable">
             <tr style="border-top: 0px;">
-                <th width="48px">
+                <th>
                     ${%Active}
-                    <!-- TODO add toggle button here showing current state -->
                 </th>
                 <th width="20%" initialsortdir="down">
                     ${%ID}
@@ -34,7 +35,13 @@
             </tr>
             <j:forEach var="gen" items="${it.controller.registeredGenerators}">
                 <tr>
-                    <td>${gen.active}</td>
+                    <td>
+                        <form method="post" action="toggleGenerator?generatorId=${gen.generatorId}">
+                            Active: <strong>${gen.active}</strong>
+                            <br/>
+                            <f:submit value="Toggle"></f:submit>
+                        </form>
+                    </td>
                     <td>${gen.generatorId}</td>
                     <td>${gen.concurrentRunCount}</td>
                     <td>${gen.jobNameRegex}</td>

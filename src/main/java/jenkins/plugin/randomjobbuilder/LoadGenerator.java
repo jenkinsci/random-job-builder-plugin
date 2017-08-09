@@ -4,8 +4,10 @@ import hudson.Extension;
 import hudson.ExtensionPoint;
 import hudson.model.AbstractDescribableImpl;
 import hudson.model.Descriptor;
+import hudson.model.Failure;
 import hudson.model.Job;
 import hudson.util.FormValidation;
+import jenkins.model.Jenkins;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.NoExternalUse;
@@ -14,15 +16,26 @@ import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.export.Exported;
 import org.kohsuke.stapler.export.ExportedBean;
 
+import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.UUID;
 
 /** Base for all load generators that run jobs */
 @ExportedBean
+@Restricted(NoExternalUse.class) // Until the APIs are more rigidly defined
 public abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerator> implements ExtensionPoint {
     /** Identifies the generator for causes */
+    @Nonnull
     String generatorId;
+
+    /** Human-visible name to use */
+    @Nonnull
+    String shortName;
+
+    /** User-readable description */
+    @CheckForNull
+    String description;
 
     protected LoadTestMode loadTestMode = LoadTestMode.IDLE;
 
@@ -48,8 +61,45 @@ public abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerato
 
     @DataBoundSetter
     @Restricted(NoExternalUse.class)
-    public void setGeneratorId(String generatorId) {
-        this.generatorId = generatorId;
+    public void setGeneratorId(final String generatorId) {
+        if (StringUtils.isEmpty(generatorId)) {
+            this.generatorId = DescriptorBase.getNewGeneratorId();
+        } else {
+            Jenkins.checkGoodName(generatorId);
+            this.generatorId = generatorId;
+        }
+    }
+
+    @Nonnull
+    @Exported
+    public String getShortName() {
+        return shortName;
+    }
+
+    @DataBoundSetter
+    @Restricted(NoExternalUse.class)
+    public void setShortName(final String shortName) {
+        if (StringUtils.isEmpty(shortName)) {
+            throw new IllegalArgumentException("Short name is empty and may not be");
+        }
+        Jenkins.checkGoodName(shortName);
+        this.shortName = shortName;
+    }
+
+    @Exported
+    @CheckForNull
+    public String getDescription() {
+        return this.description;
+    }
+
+    /**
+     * Set the description - may be null
+     * @param desc Description for generator
+     */
+    @Restricted(NoExternalUse.class)
+    @DataBoundSetter
+    public void setDescription(final String desc) {
+        this.description = desc;
     }
 
     public boolean isActive() {
@@ -105,6 +155,18 @@ public abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerato
         public FormValidation doCheckGeneratorId(@QueryParameter String generatorId) {
             if (StringUtils.isEmpty(generatorId)) {
                 return FormValidation.error("Generator ID \"{0}\" is empty!");
+            }
+            return FormValidation.ok();
+        }
+
+        public FormValidation doCheckShortName(@QueryParameter String shortName) {
+            if (StringUtils.isEmpty(shortName)) {
+                return FormValidation.error("Short name is empty and may not be");
+            }
+            try {
+                Jenkins.checkGoodName(shortName);
+            } catch (Failure fail) {
+                return FormValidation.error(fail.getMessage());
             }
             return FormValidation.ok();
         }

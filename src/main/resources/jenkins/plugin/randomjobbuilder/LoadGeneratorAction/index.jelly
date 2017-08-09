@@ -21,7 +21,10 @@
                         ${%Active}
                     </th>
                     <th width="20%" initialsortdir="down">
-                        ${%ID}
+                        ${%Name}
+                    </th>
+                    <th>
+                        ${%Description}
                     </th>
                     <th>
                         ${%Concurrent Runs Goal}
@@ -44,7 +47,8 @@
                                 <f:submit value="Active: ${gen.active}"></f:submit>
                             </form>
                         </td>
-                        <td>${gen.generatorId}</td>
+                        <td>${gen.shortName}</td>
+                        <td>${gen.description}</td>
                         <td>${gen.concurrentRunCount}</td>
                         <td>${gen.jobNameRegex}</td>
                         <td>${it.controller.getQueuedCount(gen)}</td>

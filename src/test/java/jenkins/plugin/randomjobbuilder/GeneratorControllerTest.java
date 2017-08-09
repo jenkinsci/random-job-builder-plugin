@@ -20,62 +20,9 @@ import static junit.framework.Assert.*;
 /**
  * @author Sam Van Oort
  */
-public class LoadGenerationTest {
+public class GeneratorControllerTest {
     @Rule
     public JenkinsRule jenkinsRule = new JenkinsRule();
-
-    @Test
-    public void testTrivialGeneratorSetup() throws Exception {
-        WorkflowJob job = jenkinsRule.jenkins.createProject(WorkflowJob.class, "TrivialJob");
-        job.setDefinition(new CpsFlowDefinition("echo 'I did something' "));
-
-        TrivialLoadGenerator trivialMatch = new TrivialLoadGenerator(".*", 1);
-        assertFalse("Generator should start inactive", trivialMatch.isActive());
-        assertEquals("Inactive generator shouldn't try to launch jobs", 0, trivialMatch.getRunsToLaunch(0));
-        assertEquals(1, trivialMatch.getConcurrentRunCount());
-        assertEquals("Generator should start idle and didn't", LoadTestMode.IDLE, trivialMatch.getLoadTestMode());
-        assertEquals(".*", trivialMatch.getJobNameRegex());
-        assertNotNull(trivialMatch.getGeneratorId());
-    }
-
-    @Test
-    public void testTrivialGeneratorFilterJobs() throws Exception {
-        WorkflowJob job = jenkinsRule.jenkins.createProject(WorkflowJob.class, "TrivialJob");
-        job.setDefinition(new CpsFlowDefinition("echo 'I did something' "));
-
-        TrivialLoadGenerator trivialMatch = new TrivialLoadGenerator(".*", 1);
-        List<Job> candidates = trivialMatch.getCandidateJobs();
-        assertTrue("Filter should return job", candidates.contains(job));
-        assertEquals(1, candidates.size());
-        assertEquals(job,LoadGeneration.pickRandomJob(candidates));
-
-        trivialMatch.setJobNameRegex("");
-        assertEquals(1, trivialMatch.getCandidateJobs().size());
-        trivialMatch.setJobNameRegex(null);
-        assertEquals(1, trivialMatch.getCandidateJobs().size());
-
-        TrivialLoadGenerator trivialNoMatch = new TrivialLoadGenerator("cheese", 1);
-        candidates = trivialNoMatch.getCandidateJobs();
-        assertEquals("Empty filter should return no matches", 0, candidates.size());
-        assertNull(LoadGeneration.pickRandomJob(candidates));
-    }
-
-    @Test
-    public void testTrivialLoadGeneratorStart() throws Exception {
-        WorkflowJob job = jenkinsRule.jenkins.createProject(WorkflowJob.class, "TrivialJob");
-        job.setDefinition(new CpsFlowDefinition("echo 'I did something' "));
-
-        TrivialLoadGenerator trivial = new TrivialLoadGenerator(".*", 1);
-        LoadTestMode testMode = trivial.start();
-        assertEquals(LoadTestMode.LOAD_TEST, testMode);
-        assertEquals(LoadTestMode.LOAD_TEST, trivial.getLoadTestMode());
-        assert trivial.isActive();
-
-        testMode = trivial.stop();
-        assertEquals(LoadTestMode.IDLE, testMode);
-        assertEquals(LoadTestMode.IDLE, trivial.getLoadTestMode());
-        assert !trivial.isActive();
-    }
 
     @Test
     public void testBasicGeneration() throws Exception {

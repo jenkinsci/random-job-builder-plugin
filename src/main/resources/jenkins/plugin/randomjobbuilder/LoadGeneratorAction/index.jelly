@@ -26,8 +26,46 @@ THE SOFTWARE.
     <l:layout title="${it.displayName}">
         <st:include it="${it.context}" page="sidepanel.jelly"/>
         <l:main-panel>
+            <!-- Link to configure page -->
+            <!-- Toggle autostart on/off -->
+            Autostart is: ${it.controller.autostart}
+            <span class="copy-button">
+                <button type="button">Click Me!</button>
+            </span>
             <h1>Load Generator Controller</h1>
-            
+            <table class="sortable pane bigtable">
+            <tr style="border-top: 0px;">
+                <th width="48px">
+                    ${%Active}
+                    <!-- TODO add toggle button here showing current state -->
+                </th>
+                <th width="20%" initialsortdir="down">
+                    ${%ID}
+                </th>
+                <th>
+                    ${%ConcurrentCount}
+                </th>
+                <th>
+                    ${%Filter}
+                </th>
+                <th>
+                    ${%Queued}
+                </th>
+                <th>
+                    ${%Running}
+                </th>
+            </tr>
+            <j:forEach var="gen" items="${it.controller.registeredGenerators}">
+                <tr>
+                    <td>${gen.active}</td>
+                    <td>${gen.generatorId}</td>
+                    <td>${gen.concurrentRunCount}</td>
+                    <td>${gen.jobNameRegex}</td>
+                    <td>${it.controller.getQueuedCount(gen)}</td>
+                    <td>${it.controller.getRunningCount(gen)}</td>
+                </tr>
+            </j:forEach>
+            </table>
         </l:main-panel>
     </l:layout>
 </j:jelly>

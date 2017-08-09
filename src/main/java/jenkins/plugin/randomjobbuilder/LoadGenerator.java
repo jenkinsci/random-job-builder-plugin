@@ -47,10 +47,12 @@ public abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerato
 
     public LoadGenerator() {
         this.generatorId = DescriptorBase.getNewGeneratorId();
+        this.setShortName(DescriptorBase.getNewGeneratorId());
     }
 
     public LoadGenerator(@Nonnull String generatorId) {
         this.generatorId = generatorId;
+        this.setShortName(generatorId);
     }
 
     @Nonnull

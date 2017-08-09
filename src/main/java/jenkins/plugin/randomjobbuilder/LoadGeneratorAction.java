@@ -15,6 +15,8 @@ import jenkins.model.TransientActionFactory;
 import org.acegisecurity.AccessDeniedException;
 import org.acegisecurity.Authentication;
 import org.apache.commons.lang.StringUtils;
+import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.NoExternalUse;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
@@ -28,6 +30,7 @@ import java.util.Collections;
 /**
  * @author Sam Van Oort
  */
+@Restricted(NoExternalUse.class)
 public class LoadGeneratorAction implements Action, AccessControlled, ModelObjectWithContextMenu {
 
     Permission USE_PERMISSION = Jenkins.ADMINISTER;
@@ -41,11 +44,16 @@ public class LoadGeneratorAction implements Action, AccessControlled, ModelObjec
         return LoadGeneration.getGeneratorController();
     }
 
+    @Restricted(NoExternalUse.class)
+    public String getRootUrl() {
+        return Jenkins.getActiveInstance().getRootUrl();
+    }
+
     @RequirePOST
     public HttpResponse doAutostart(StaplerRequest req, @QueryParameter boolean autostartState) {
         Jenkins.getActiveInstance().checkPermission(USE_PERMISSION);
         getController().setAutostart(autostartState);
-        return HttpResponses.ok();
+        return HttpResponses.redirectToDot();
     }
 
     @RequirePOST
@@ -62,7 +70,7 @@ public class LoadGeneratorAction implements Action, AccessControlled, ModelObjec
                 gen.stop();
             } else {
                 gen.start();
-            } return HttpResponses.ok();
+            } return HttpResponses.redirectToDot();
         }
     }
 

@@ -3,10 +3,9 @@
     <l:layout title="${it.displayName}">
         <st:include it="${it.context}" page="sidepanel.jelly"/>
         <l:main-panel>
-            <!-- TODO link to configure page -->
-
+            <a href="${it.getRootUrl()}configure">See configuration section for Load Generators</a>
             <!-- Toggle autostart on/off -->
-            Autostart is: ${it.controller.autostart}
+            <p/>Autostart is: ${it.controller.autostart}
             <form method="post" action="autostart?autostartState=${!it.controller.autostart}">
                 <f:submit value="Toggle"></f:submit>
             </form>

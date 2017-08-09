@@ -356,6 +356,11 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
             }
         }
 
+        /** Returns a snapshot of current registered load generators */
+        public List<LoadGenerator> getRegisteredGenerators() {
+            return new ArrayList<LoadGenerator>(registeredGenerators.values());
+        }
+
         /**
          * Unregister the generator and stop all jobs and tasks from it
          * @param generator Generator to unregister/remove
@@ -672,7 +677,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
          *  This allows for ramp-up behavior.
          */
         public int getRunsToLaunch(int currentRuns) {
-            if (isActive()) {
+            if (isActive() && getConcurrentRunCount() > 0) {
                 return getConcurrentRunCount()-currentRuns;
             }
             return 0;

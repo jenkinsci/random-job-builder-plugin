@@ -35,6 +35,10 @@ public class LoadGeneratorAction implements Action, AccessControlled, ModelObjec
      */
     private final ModelObject context;
 
+    public LoadGeneration.GeneratorController getController() {
+        return LoadGeneration.getGeneratorController();
+    }
+
     public ModelObject getContext() {
         return context;
     }

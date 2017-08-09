@@ -19,8 +19,6 @@ import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
-import org.kohsuke.stapler.WebMethod;
-import org.kohsuke.stapler.export.ExportedBean;
 import org.kohsuke.stapler.interceptor.RequirePOST;
 
 import javax.annotation.Nonnull;
@@ -31,6 +29,8 @@ import java.util.Collections;
  * @author Sam Van Oort
  */
 public class LoadGeneratorAction implements Action, AccessControlled, ModelObjectWithContextMenu {
+
+    Permission USE_PERMISSION = Jenkins.ADMINISTER;
 
     /**
      * The context in which this {@link LoadGeneratorAction} was created.
@@ -43,12 +43,14 @@ public class LoadGeneratorAction implements Action, AccessControlled, ModelObjec
 
     @RequirePOST
     public HttpResponse doAutostart(StaplerRequest req, @QueryParameter boolean autostartState) {
+        Jenkins.getActiveInstance().checkPermission(USE_PERMISSION);
         getController().setAutostart(autostartState);
         return HttpResponses.ok();
     }
 
     @RequirePOST
     public HttpResponse doToggleGenerator(StaplerRequest req, @QueryParameter String generatorId) {
+        Jenkins.getActiveInstance().checkPermission(USE_PERMISSION);
         if (StringUtils.isEmpty(generatorId)) {
             return HttpResponses.errorWithoutStack(500, "You must supply a generator ID");
         } else {
@@ -96,10 +98,7 @@ public class LoadGeneratorAction implements Action, AccessControlled, ModelObjec
 
             @Override
             public boolean hasPermission(@Nonnull Authentication a, @Nonnull Permission permission) {
-                if (accessControlled.getACL().hasPermission(a, permission)) {
-                    return Jenkins.getActiveInstance().hasPermission(permission);
-                }
-                return false;
+                return accessControlled.getACL().hasPermission(a, permission);
             }
         };
     }

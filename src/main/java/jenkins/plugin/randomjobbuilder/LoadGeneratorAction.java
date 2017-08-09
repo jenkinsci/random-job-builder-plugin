@@ -40,8 +40,8 @@ public class LoadGeneratorAction implements Action, AccessControlled, ModelObjec
      */
     private final ModelObject context;
 
-    public LoadGeneration.GeneratorController getController() {
-        return LoadGeneration.getGeneratorController();
+    public GeneratorController getController() {
+        return GeneratorController.getInstance();
     }
 
     @Restricted(NoExternalUse.class)
@@ -62,7 +62,7 @@ public class LoadGeneratorAction implements Action, AccessControlled, ModelObjec
         if (StringUtils.isEmpty(generatorId)) {
             return HttpResponses.errorWithoutStack(500, "You must supply a generator ID");
         } else {
-            LoadGeneration.LoadGenerator gen = getController().getRegisteredGeneratorbyId(generatorId);
+            LoadGenerator gen = getController().getRegisteredGeneratorbyId(generatorId);
             if (gen == null) {
                 return HttpResponses.errorWithoutStack(500, "Invalid Generator ID "+generatorId);
             }

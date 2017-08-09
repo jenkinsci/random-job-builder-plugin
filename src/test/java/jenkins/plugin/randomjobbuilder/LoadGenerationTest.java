@@ -2,7 +2,6 @@ package jenkins.plugin.randomjobbuilder;
 
 import hudson.model.Job;
 import hudson.model.labels.LabelAtom;
-import hudson.model.queue.QueueTaskFuture;
 import hudson.tasks.LogRotator;
 import jenkins.model.Jenkins;
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
@@ -14,7 +13,6 @@ import org.junit.Test;
 import org.jvnet.hudson.test.JenkinsRule;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static junit.framework.Assert.*;
@@ -31,11 +29,11 @@ public class LoadGenerationTest {
         WorkflowJob job = jenkinsRule.jenkins.createProject(WorkflowJob.class, "TrivialJob");
         job.setDefinition(new CpsFlowDefinition("echo 'I did something' "));
 
-        LoadGeneration.TrivialLoadGenerator trivialMatch = new LoadGeneration.TrivialLoadGenerator(".*", 1);
+        TrivialLoadGenerator trivialMatch = new TrivialLoadGenerator(".*", 1);
         assertFalse("Generator should start inactive", trivialMatch.isActive());
         assertEquals("Inactive generator shouldn't try to launch jobs", 0, trivialMatch.getRunsToLaunch(0));
         assertEquals(1, trivialMatch.getConcurrentRunCount());
-        assertEquals("Generator should start idle and didn't", LoadGeneration.CurrentTestMode.IDLE, trivialMatch.getCurrentTestMode());
+        assertEquals("Generator should start idle and didn't", LoadTestMode.IDLE, trivialMatch.getLoadTestMode());
         assertEquals(".*", trivialMatch.getJobNameRegex());
         assertNotNull(trivialMatch.getGeneratorId());
     }
@@ -45,7 +43,7 @@ public class LoadGenerationTest {
         WorkflowJob job = jenkinsRule.jenkins.createProject(WorkflowJob.class, "TrivialJob");
         job.setDefinition(new CpsFlowDefinition("echo 'I did something' "));
 
-        LoadGeneration.TrivialLoadGenerator trivialMatch = new LoadGeneration.TrivialLoadGenerator(".*", 1);
+        TrivialLoadGenerator trivialMatch = new TrivialLoadGenerator(".*", 1);
         List<Job> candidates = trivialMatch.getCandidateJobs();
         assertTrue("Filter should return job", candidates.contains(job));
         assertEquals(1, candidates.size());
@@ -56,7 +54,7 @@ public class LoadGenerationTest {
         trivialMatch.setJobNameRegex(null);
         assertEquals(1, trivialMatch.getCandidateJobs().size());
 
-        LoadGeneration.TrivialLoadGenerator trivialNoMatch = new LoadGeneration.TrivialLoadGenerator("cheese", 1);
+        TrivialLoadGenerator trivialNoMatch = new TrivialLoadGenerator("cheese", 1);
         candidates = trivialNoMatch.getCandidateJobs();
         assertEquals("Empty filter should return no matches", 0, candidates.size());
         assertNull(LoadGeneration.pickRandomJob(candidates));
@@ -67,15 +65,15 @@ public class LoadGenerationTest {
         WorkflowJob job = jenkinsRule.jenkins.createProject(WorkflowJob.class, "TrivialJob");
         job.setDefinition(new CpsFlowDefinition("echo 'I did something' "));
 
-        LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 1);
-        LoadGeneration.CurrentTestMode testMode = trivial.start();
-        assertEquals(LoadGeneration.CurrentTestMode.LOAD_TEST, testMode);
-        assertEquals(LoadGeneration.CurrentTestMode.LOAD_TEST, trivial.getCurrentTestMode());
+        TrivialLoadGenerator trivial = new TrivialLoadGenerator(".*", 1);
+        LoadTestMode testMode = trivial.start();
+        assertEquals(LoadTestMode.LOAD_TEST, testMode);
+        assertEquals(LoadTestMode.LOAD_TEST, trivial.getLoadTestMode());
         assert trivial.isActive();
 
         testMode = trivial.stop();
-        assertEquals(LoadGeneration.CurrentTestMode.IDLE, testMode);
-        assertEquals(LoadGeneration.CurrentTestMode.IDLE, trivial.getCurrentTestMode());
+        assertEquals(LoadTestMode.IDLE, testMode);
+        assertEquals(LoadTestMode.IDLE, trivial.getLoadTestMode());
         assert !trivial.isActive();
     }
 
@@ -85,10 +83,10 @@ public class LoadGenerationTest {
         job.setBuildDiscarder(new LogRotator(-1, 20, -1, 40));
         job.setDefinition(new CpsFlowDefinition("echo 'I did something' \n" +
                 "sleep 1"));
-        LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 1);
+        TrivialLoadGenerator trivial = new TrivialLoadGenerator(".*", 1);
         LoadGeneration.DescriptorImpl desc = LoadGeneration.getDescriptorInstance();
-        LoadGeneration.getGeneratorController().registerOrUpdateGenerator(trivial);
-        LoadGeneration.getGeneratorController().setAutostart(true);
+        GeneratorController.getInstance().registerOrUpdateGenerator(trivial);
+        GeneratorController.getInstance().setAutostart(true);
 
         Jenkins j = jenkinsRule.getInstance();
         trivial.start();
@@ -112,9 +110,9 @@ public class LoadGenerationTest {
 
         // Generator is unregistered as part of LoadGeneration.DescriptorImpl.generators
         // So it doesn't automatically start creating load
-        LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 8);
+        TrivialLoadGenerator trivial = new TrivialLoadGenerator(".*", 8);
         trivial.start();
-        LoadGeneration.GeneratorController controller = LoadGeneration.getGeneratorController();
+        GeneratorController controller = GeneratorController.getInstance();
         controller.registerOrUpdateGenerator(trivial);
         Assert.assertEquals(trivial, controller.getRegisteredGeneratorbyId(trivial.generatorId));
 
@@ -132,7 +130,7 @@ public class LoadGenerationTest {
 
         // Simulate having queued an item, then run a job, then see if the controller picks it up as if the job started running
         controller.addQueueItem(trivial);
-        QueueTaskFuture qtf = LoadGeneration.launchJob(trivial, job, 0);
+        LoadGeneration.launchJob(trivial, job, 0);
 
         long started = System.currentTimeMillis();
         long maxWait = 1000L;
@@ -163,10 +161,10 @@ public class LoadGenerationTest {
         job.setDefinition(new CpsFlowDefinition("node('doesnotexist') {\n" +
                 "echo 'I did something' \n" +
                 "}"));
-        LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 8);
+        TrivialLoadGenerator trivial = new TrivialLoadGenerator(".*", 8);
         Assert.assertEquals(8, trivial.getConcurrentRunCount());
         LoadGeneration.DescriptorImpl desc = LoadGeneration.getDescriptorInstance();
-        LoadGeneration.GeneratorController controller = LoadGeneration.getGeneratorController();
+        GeneratorController controller = GeneratorController.getInstance();
         controller.registerOrUpdateGenerator(trivial);
 
         // Check it queued up correctly
@@ -187,26 +185,26 @@ public class LoadGenerationTest {
 
     @Test
     public void testControllerSync() throws Exception {
-        LoadGeneration.GeneratorController controller = LoadGeneration.getGeneratorController();
+        GeneratorController controller = GeneratorController.getInstance();
         controller.setAutostart(false);
 
-        LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 8);
+        TrivialLoadGenerator trivial = new TrivialLoadGenerator(".*", 8);
         trivial.start();
-        LoadGeneration.TrivialLoadGenerator trivial2 = new LoadGeneration.TrivialLoadGenerator(".*foo", 4);
+        TrivialLoadGenerator trivial2 = new TrivialLoadGenerator(".*foo", 4);
         trivial2.setGeneratorId(trivial.generatorId);
         trivial2.stop();
 
-        List<LoadGeneration.LoadGenerator> originalGenerators = Arrays.asList((LoadGeneration.LoadGenerator)trivial);
-        List<LoadGeneration.LoadGenerator> modifiedGenerators = Arrays.asList((LoadGeneration.LoadGenerator)trivial2);
+        List<LoadGenerator> originalGenerators = Arrays.asList((LoadGenerator)trivial);
+        List<LoadGenerator> modifiedGenerators = Arrays.asList((LoadGenerator)trivial2);
 
         controller.synchGenerators(originalGenerators);
         Assert.assertEquals(1, controller.registeredGenerators.values().size());
         Assert.assertTrue(trivial == controller.getRegisteredGeneratorbyId(trivial.getGeneratorId()));
-        Assert.assertEquals(trivial.getCurrentTestMode(), controller.getRegisteredGeneratorbyId(trivial.getGeneratorId()).getCurrentTestMode());
+        Assert.assertEquals(trivial.getLoadTestMode(), controller.getRegisteredGeneratorbyId(trivial.getGeneratorId()).getLoadTestMode());
 
         controller.synchGenerators(modifiedGenerators);
         Assert.assertTrue(trivial2 == controller.getRegisteredGeneratorbyId(trivial.getGeneratorId()));
-        Assert.assertEquals(trivial.getCurrentTestMode(), controller.getRegisteredGeneratorbyId(trivial.getGeneratorId()).getCurrentTestMode());
+        Assert.assertEquals(trivial.getLoadTestMode(), controller.getRegisteredGeneratorbyId(trivial.getGeneratorId()).getLoadTestMode());
     }
 
     @Test
@@ -215,10 +213,10 @@ public class LoadGenerationTest {
         job.setDefinition(new CpsFlowDefinition("node('doesnotexist') {\n" +
                 "echo 'I did something' \n" +
                 "}"));
-        LoadGeneration.TrivialLoadGenerator trivial = new LoadGeneration.TrivialLoadGenerator(".*", 8);
+        TrivialLoadGenerator trivial = new TrivialLoadGenerator(".*", 8);
         Assert.assertEquals(8, trivial.getConcurrentRunCount());
         LoadGeneration.DescriptorImpl desc = LoadGeneration.getDescriptorInstance();
-        LoadGeneration.GeneratorController controller = LoadGeneration.getGeneratorController();
+        GeneratorController controller = GeneratorController.getInstance();
         controller.registerOrUpdateGenerator(trivial);
 
         // Check it queued up correctly

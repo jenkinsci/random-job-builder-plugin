@@ -4,7 +4,6 @@
     <f:section title="${descriptor.displayName}">
         <f:block><a href="${it.getRootUrl()}loadgenerator">See controller page for generators</a></f:block>
         <div id="loadgenerators" name="loadgenerators"></div>
-        <!--<a name="loadgenerators"/>-->
         <f:block>
             <f:repeatableHeteroProperty field="loadGenerators" hasHeader="false"></f:repeatableHeteroProperty>
         </f:block>

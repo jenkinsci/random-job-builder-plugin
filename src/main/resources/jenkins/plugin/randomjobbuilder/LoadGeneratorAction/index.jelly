@@ -24,16 +24,16 @@
                         ${%ID}
                     </th>
                     <th>
-                        ${%ConcurrentCount}
+                        ${%Concurrent Runs Goal}
                     </th>
                     <th>
                         ${%Filter}
                     </th>
                     <th>
-                        ${%Queued}
+                        ${%Currently Queued}
                     </th>
                     <th>
-                        ${%Running}
+                        ${%Currently Running}
                     </th>
                 </tr>
                 <j:forEach var="gen" items="${it.controller.registeredGenerators}">

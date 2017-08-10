@@ -108,7 +108,7 @@ public class GeneratorController extends RunListener<Run> {
      *  which will kill any jobs or tasks linked to them
      *  @param generators List of generators to add/remove/update
      */
-    public synchronized void synchGenerators(@Nonnull List<LoadGenerator> generators) {
+    public synchronized void syncGenerators(@Nonnull List<LoadGenerator> generators) {
         Set<LoadGenerator> registeredSet = new HashSet<LoadGenerator>(registeredGenerators.values());
         Set<LoadGenerator> inputSet = new HashSet<LoadGenerator>(generators);
 

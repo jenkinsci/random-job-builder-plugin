@@ -143,12 +143,12 @@ public class GeneratorControllerTest {
         List<LoadGenerator> originalGenerators = Arrays.asList((LoadGenerator)trivial);
         List<LoadGenerator> modifiedGenerators = Arrays.asList((LoadGenerator)trivial2);
 
-        controller.synchGenerators(originalGenerators);
+        controller.syncGenerators(originalGenerators);
         Assert.assertEquals(1, controller.registeredGenerators.values().size());
         Assert.assertTrue(trivial == controller.getRegisteredGeneratorbyId(trivial.getGeneratorId()));
         Assert.assertEquals(trivial.getLoadTestMode(), controller.getRegisteredGeneratorbyId(trivial.getGeneratorId()).getLoadTestMode());
 
-        controller.synchGenerators(modifiedGenerators);
+        controller.syncGenerators(modifiedGenerators);
         Assert.assertTrue(trivial2 == controller.getRegisteredGeneratorbyId(trivial.getGeneratorId()));
         Assert.assertEquals(trivial.getLoadTestMode(), controller.getRegisteredGeneratorbyId(trivial.getGeneratorId()).getLoadTestMode());
     }

@@ -60,7 +60,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
                 // TODO Revisit my attempt at using ReconfigurableDescribable to reconfigure existing instances
                 // Instead of making new ones
                 loadGenerators.rebuildHetero(req, json, Jenkins.getActiveInstance().getExtensionList(LoadGenerator.DescriptorBase.class), "loadGenerators");
-                GeneratorController.getInstance().synchGenerators(loadGenerators);
+                GeneratorController.getInstance().syncGenerators(loadGenerators);
                 save();
             } catch (IOException ioe) {
                 throw new RuntimeException("Something failed horribly around descriptors", ioe);
@@ -70,7 +70,7 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
 
         public synchronized void load() {
             super.load();
-            GeneratorController.getInstance().synchGenerators(loadGenerators);
+            GeneratorController.getInstance().syncGenerators(loadGenerators);
         }
 
         public DescriptorImpl() {

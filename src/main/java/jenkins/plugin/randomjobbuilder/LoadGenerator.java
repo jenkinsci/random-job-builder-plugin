@@ -146,7 +146,7 @@ public abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerato
 
     /**
      * Get the intended number of concurrent runs at once
-     * @return -1 for unlimited, 0 if none, or positive integer for intended count
+     * @return &lt; 0 or (or negative) will result in no runs triggered, or positive integer for intended count
      */
     @Exported
     public abstract int getConcurrentRunCount();

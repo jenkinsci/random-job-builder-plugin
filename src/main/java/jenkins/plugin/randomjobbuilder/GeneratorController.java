@@ -27,13 +27,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Controls load generation for an input set of runs, by watching a registered set of LoadGenerators
- * And using listeners to add/remove tasks as desired
- * Registers run for lookup, so we know which ones to kill if we stop load suddenly...
- *   or in which cases we need to start new jobs to maintain load level
+ * Controls load generation for a set of registered set of LoadGenerators
  *
- *   And triggers new builds when needed
- *
+ * <ul>
+ *   <li>Uses listeners to manage tasks going from queue to becoming running jobs</li>
+ *   <li>Manage load by starting new jobs as needed for loak</li>
+ *   <li>Provides way to kill all tasks for a load generator</li>
+ *   <li>Provides synchronization and update of the generator list with on-the-fly modifications</li>
+ * </ul>
  *
  */
 @Restricted(NoExternalUse.class)

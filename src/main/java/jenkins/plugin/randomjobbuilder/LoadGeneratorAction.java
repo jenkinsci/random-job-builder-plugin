@@ -45,9 +45,20 @@ public class LoadGeneratorAction implements Action, AccessControlled, ModelObjec
         return GeneratorController.getInstance();
     }
 
+    /** Get the base URL for Jenkins, first trying to use the request
+     *  and then falling back to manual configuration otherwise.
+     *
+     *  This ensures that we can address Jenkins if it is running in Docker
+     *   with a manually configured hostname.
+     */
     @Restricted(NoExternalUse.class)
     public String getRootUrl() {
-        return Jenkins.getActiveInstance().getRootUrl();
+        // Note that the order of evaluation is the exact opposite of Jenkins#getRootUrl
+        try {
+            return Jenkins.getActiveInstance().getRootUrlFromRequest();
+        } catch (IllegalStateException ise) {
+            return Jenkins.getActiveInstance().getRootUrl();
+        }
     }
 
     @RequirePOST

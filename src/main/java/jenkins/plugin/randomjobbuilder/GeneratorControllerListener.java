@@ -5,8 +5,6 @@ import hudson.ExtensionPoint;
 import jenkins.model.Jenkins;
 
 import javax.annotation.Nonnull;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 
 /**
@@ -14,8 +12,6 @@ import java.util.logging.Logger;
  * Used to register changes in scenarios
  */
 public abstract class GeneratorControllerListener implements ExtensionPoint {
-
-    static final Logger LOGGER = Logger.getLogger(GeneratorControllerListener.class.getName());
 
     public abstract void onGeneratorAdded(@Nonnull LoadGenerator gen);
     public abstract void onGeneratorRemoved(@Nonnull LoadGenerator gen);

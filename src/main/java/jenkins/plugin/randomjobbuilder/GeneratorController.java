@@ -211,7 +211,7 @@ public final class GeneratorController extends RunListener<Run> {
     /** Sum of both queued and actively running runs for the given generator
      * @param gen
      */
-    int getQueuedAndRunningCount(@Nonnull LoadGenerator gen) {
+    public int getQueuedAndRunningCount(@Nonnull LoadGenerator gen) {
         synchronized (gen) {
             AtomicInteger val = queueTaskCount.get(gen.getGeneratorId());
             int count = (val != null) ? val.get() : 0;

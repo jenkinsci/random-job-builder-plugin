@@ -267,6 +267,7 @@ public class GeneratorController extends RunListener<Run> {
      * @param inputGen
      */
     public void stopAbruptly(@Nonnull final LoadGenerator inputGen) {
+        // TODO find the FlyWeightTask too and kill that, if we aren't already
         // Find the appropriate registered generator, don't just blindly use supplied instance
         final LoadGenerator gen = getRegisteredGeneratorbyId(inputGen.generatorId);
         if (gen == null) {

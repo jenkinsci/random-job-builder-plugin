@@ -33,7 +33,7 @@
   </parent>
 
   <artifactId>random-job-builder</artifactId>
-  <version>1.1-SNAPSHOT</version>
+  <version>1.1-exposeapis-SNAPSHOT</version>
   <packaging>hpi</packaging>
 
   <name>Random Job Builder Plugin</name>

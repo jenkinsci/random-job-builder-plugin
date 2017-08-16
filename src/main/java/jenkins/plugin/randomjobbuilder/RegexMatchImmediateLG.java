@@ -27,13 +27,13 @@ public class RegexMatchImmediateLG extends LoadGenerator {
     }
 
     @Override
-    public LoadTestMode start() {
+    protected LoadTestMode startInternal() {
         this.loadTestMode = LoadTestMode.LOAD_TEST;
         return LoadTestMode.LOAD_TEST;
     }
 
     @Override
-    public LoadTestMode stop() {
+    public LoadTestMode stopInternal() {
         this.loadTestMode = LoadTestMode.IDLE;
         return LoadTestMode.IDLE;
     }

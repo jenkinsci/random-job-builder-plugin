@@ -30,13 +30,11 @@ public class RegexMatchImmediateLG extends LoadGenerator {
 
     @Override
     protected LoadTestMode startInternal() {
-        this.loadTestMode = LoadTestMode.LOAD_TEST;
         return LoadTestMode.LOAD_TEST;
     }
 
     @Override
     public LoadTestMode stopInternal() {
-        this.loadTestMode = LoadTestMode.IDLE;
         return LoadTestMode.IDLE;
     }
 
@@ -51,6 +49,11 @@ public class RegexMatchImmediateLG extends LoadGenerator {
         this.jobNameRegex = jobNameRegex;
     }
 
+    /**
+     * Get the intended number of concurrent runs at once
+     * @return &lt; 0 or (or negative) will result in no runs triggered, or positive integer for intended count
+     */
+    @Exported
     public int getConcurrentRunCount() {
         return concurrentRunCount;
     }
@@ -63,6 +66,14 @@ public class RegexMatchImmediateLG extends LoadGenerator {
     @DataBoundSetter
     public void setGeneratorId(@Nonnull String generatorId) {
         super.setGeneratorId(generatorId);
+    }
+
+    @Override
+    public int getRunsToLaunch(int currentRuns) {
+        if (isActive() && getConcurrentRunCount() > 0) {
+            return getConcurrentRunCount()-currentRuns;
+        }
+        return 0;
     }
 
     @DataBoundConstructor

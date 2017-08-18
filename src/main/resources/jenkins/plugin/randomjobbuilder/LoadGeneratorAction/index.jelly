@@ -26,9 +26,10 @@
                     <th>
                         ${%Description}
                     </th>
-                    <th>
+                    <!-- Need a representation for this since not all LoadGenerators will have it -->
+                    <!--<th>
                         ${%Concurrent Runs Goal}
-                    </th>
+                    </th>-->
                     <th>
                         ${%Filter}
                     </th>
@@ -49,7 +50,8 @@
                         </td>
                         <td>${gen.shortName}</td>
                         <td>${gen.description}</td>
-                        <td>${gen.concurrentRunCount}</td>
+                        <!-- Need a representation for this since not all LoadGenerators will have it -->
+                        <!--<td>${gen.concurrentRunCount}</td>-->
                         <td>${gen.jobNameRegex}</td>
                         <td>${it.controller.getQueuedCount(gen)}</td>
                         <td>${it.controller.getRunningCount(gen)}</td>

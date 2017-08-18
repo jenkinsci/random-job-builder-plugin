@@ -15,8 +15,4 @@
         <input type="hidden" name="generatorId"
                value="${instance.generatorId != null ? instance.generatorId : descriptor.getNewGeneratorId()}"></input>
     </f:invisibleEntry>
-    <f:entry field="concurrentRunCount" title="${%Concurrent Runs}"
-             description="Target number of concurrent runs (or queue tasks) to maintain for THIS generator ONLY">
-        <f:number/>
-    </f:entry>
 </j:jelly>

@@ -2,7 +2,14 @@
 <?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler"  xmlns:f="/lib/form">
     <st:include page="config.jelly" class="jenkins.plugin.randomjobbuilder.LoadGenerator"/>
-    <f:entry field="jobNameRegex" title="${%Regex used to select matching jobs}">
+    <f:entry field="rampUpMillis" title="Time to ramp up, or -1 for immediate">
+        <f:number/>
+    </f:entry>
+    <f:entry field="useJitter" title="Add randomness to job starting rate">
+        <f:checkbox/>
+    </f:entry>
+    <!-- TODO job picker to set jobName -->
+    <f:entry field="jobName" title="${%Name of job to run}">
         <f:textbox/>
     </f:entry>
     <f:entry field="concurrentRunCount" title="${%Concurrent Runs}"

@@ -36,7 +36,7 @@ public abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerato
     @CheckForNull
     String description;
 
-    protected LoadTestMode loadTestMode = LoadTestMode.IDLE;
+    private LoadTestMode loadTestMode = LoadTestMode.IDLE;
 
 
     @Exported
@@ -110,12 +110,7 @@ public abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerato
     /** Given current number of runs, launch more if needed.  Return number to fire now, or &lt;= 0 for none
      *  This allows for ramp-up behavior.
      */
-    public int getRunsToLaunch(int currentRuns) {
-        if (isActive() && getConcurrentRunCount() > 0) {
-            return getConcurrentRunCount()-currentRuns;
-        }
-        return 0;
-    }
+    public abstract int getRunsToLaunch(int currentRuns);
 
     /** Copy over internal state information from a newly configured instance of the same {@link LoadGenerator} type.
      *  This is to allow users to reconfigure load generators on the fly without removing and recreating them.
@@ -136,7 +131,9 @@ public abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerato
      */
     public final LoadTestMode start() {
         GeneratorControllerListener.fireGeneratorStarted(this);
-        return startInternal();
+        LoadTestMode lt = startInternal();
+        setLoadTestMode(lt);
+        return lt;
     }
 
     /** Provide the actual implementation of state change in the start method and return new state */
@@ -149,18 +146,18 @@ public abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerato
      */
     public final LoadTestMode stop() {
         GeneratorControllerListener.fireGeneratorStopped(this);
-        return stopInternal();
+        LoadTestMode lt = stopInternal();
+        setLoadTestMode(lt);
+        return lt;
+    }
+
+    /** Between this and the getter, this may be used to trigger events on change */
+    protected void setLoadTestMode(LoadTestMode testMode) {
+        this.loadTestMode = testMode;
     }
 
     /** Provide the actual implementation of state change in the stop method and return new state */
     protected abstract LoadTestMode stopInternal();
-
-    /**
-     * Get the intended number of concurrent runs at once
-     * @return &lt; 0 or (or negative) will result in no runs triggered, or positive integer for intended count
-     */
-    @Exported
-    public abstract int getConcurrentRunCount();
 
     /** Descriptors neeed to extend this */
     @Extension

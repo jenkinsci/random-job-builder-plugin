@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form">
+    <f:entry field="shortName" title="${%Unique short name for the generator}"
+             description="Unique string to name the generator, also used in APIs">
+        <f:textbox/>
+    </f:entry>
+
+    <f:entry field="description" title="${%Description of the generator}">
+        <f:textbox/>
+    </f:entry>
+
+    <!-- Hidden field to hold the generatorId so that can be carried around, allowing user to rename the shortName freely -->
+    <f:invisibleEntry>
+        <input type="hidden" name="generatorId"
+               value="${instance.generatorId != null ? instance.generatorId : descriptor.getNewGeneratorId()}"></input>
+    </f:invisibleEntry>
+    <f:entry field="concurrentRunCount" title="${%Concurrent Runs}"
+             description="Target number of concurrent runs (or queue tasks) to maintain for THIS generator ONLY">
+        <f:number/>
+    </f:entry>
+</j:jelly>

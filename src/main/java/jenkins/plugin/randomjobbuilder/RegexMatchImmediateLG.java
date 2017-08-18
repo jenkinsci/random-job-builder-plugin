@@ -3,9 +3,11 @@ package jenkins.plugin.randomjobbuilder;
 import com.google.common.base.Predicate;
 import hudson.Extension;
 import hudson.model.Job;
+import hudson.util.FormValidation;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
+import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.export.Exported;
 
 import javax.annotation.CheckForNull;
@@ -80,6 +82,23 @@ public class RegexMatchImmediateLG extends LoadGenerator {
         public String getDisplayName() {
             return "Jobs by regex match, immediate load";
         }
+
+        public FormValidation doCheckJobNameRegex(@QueryParameter String jobNameRegex) {
+            if (StringUtils.isEmpty(jobNameRegex)) {
+                return FormValidation.ok();
+            }
+
+            try {
+                List<Job> filtered = LoadGeneration.filterJobsByCondition(new JobNameFilter(jobNameRegex));
+                if (filtered.size() == 0) {
+                    return FormValidation.warning("No jobs match condition");
+                } else {
+                    return FormValidation.ok(filtered.size()+" jobs match pattern");
+                }
+            } catch (Exception ex) {
+                return FormValidation.error(ex, "Exception testing pattern");
+            }
+        }
     }
 
     /** Filters candidate jobs by pattern matching on fullName */
@@ -87,27 +106,11 @@ public class RegexMatchImmediateLG extends LoadGenerator {
         String nameMatchRegex = null;
         Pattern namePattern = null;
 
-        public JobNameFilter(){
-
-        }
-
         public JobNameFilter(String nameMatchRegex) {
             if (!StringUtils.isEmpty(nameMatchRegex)) {
                 this.nameMatchRegex = nameMatchRegex;
                 this.namePattern = Pattern.compile(nameMatchRegex);
             }
-        }
-
-        /** Sets name pattern with fluent-style API  */
-        JobNameFilter setNamePattern(String filterCondition) {
-            if (!StringUtils.isEmpty(filterCondition)) {
-                this.nameMatchRegex = filterCondition;
-                this.namePattern = Pattern.compile(filterCondition);
-            } else {
-                this.nameMatchRegex = null;
-                this.namePattern = null;
-            }
-            return this;
         }
 
         @Override

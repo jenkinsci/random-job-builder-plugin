@@ -57,9 +57,11 @@ public class SingleJobLinearRampUpLG extends LoadGenerator {
                 return finalConcurrentLoad;
             } else if (rampUpMillis <=0) {
                 return finalConcurrentLoad;
-            } else {
+            } else if (currentTime >= startTimeMillis) {
                 double fractionDone = ((double)(currentTime- startTimeMillis)/(double)(rampUpMillis));
                 return (int)(Math.round((double)(finalConcurrentLoad)*fractionDone));
+            } else {
+                return 0;
             }
         }
 

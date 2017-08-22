@@ -5,10 +5,10 @@
     <f:entry field="rampUpMillis" title="Time to ramp up, or -1 for immediate">
         <f:number/>
     </f:entry>
-    <f:entry field="useJitter" title="Add randomness to job starting rate">
+    <f:entry field="useJitter" title="Add randomness to job starting rate" description="On average starts right number of runs, but can be between 0 and 2x expected">
         <f:checkbox/>
     </f:entry>
-    <!-- TODO job picker to set jobName -->
+
     <f:entry field="jobName" title="${%Name of job to run}">
         <f:textbox/>
     </f:entry>

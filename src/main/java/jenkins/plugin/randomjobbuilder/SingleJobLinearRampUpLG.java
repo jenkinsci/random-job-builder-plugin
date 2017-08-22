@@ -1,6 +1,7 @@
 package jenkins.plugin.randomjobbuilder;
 
 import hudson.Extension;
+import hudson.model.AutoCompletionCandidates;
 import hudson.model.Job;
 import hudson.util.FormValidation;
 import jenkins.model.Jenkins;
@@ -186,6 +187,23 @@ public class SingleJobLinearRampUpLG extends LoadGenerator {
 
     @Extension
     public static class DescriptorImpl extends DescriptorBase {
+        /**
+         * Provides autocompletion for the job name fiesld
+         * @param value
+         *      The text that the user entered.
+         */
+        public AutoCompletionCandidates doAutoCompleteJobName(@QueryParameter String value) {
+            AutoCompletionCandidates c = new AutoCompletionCandidates();
+            if (StringUtils.isEmpty(value) || value.length() < 2) {
+                return c;
+            }
+            for (Job job : Jenkins.getActiveInstance().getItems(Job.class)) {
+                if (job.getFullName().contains(value)) {
+                    c.add(job.getFullName());
+                }
+            }
+            return c;
+        }
 
         @Override
         public String getDisplayName() {

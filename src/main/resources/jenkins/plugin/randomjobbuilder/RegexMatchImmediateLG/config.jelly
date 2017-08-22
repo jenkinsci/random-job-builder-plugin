@@ -1,7 +1,24 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler"  xmlns:f="/lib/form">
-    <st:include page="config.jelly" class="jenkins.plugin.randomjobbuilder.LoadGenerator"/>
+    <!-- Directly copied from LoadGenerator because apparently Jelly doesn't believe in inheritance -->
+    <f:entry field="shortName" title="${%Unique short name for the generator}"
+             description="Unique string to name the generator, also used in APIs">
+        <f:textbox/>
+    </f:entry>
+
+    <f:entry field="description" title="${%Description of the generator}">
+        <f:textbox/>
+    </f:entry>
+
+    <!-- Hidden field to hold the generatorId so that can be carried around, allowing user to rename the shortName freely -->
+    <f:invisibleEntry>
+        <input type="hidden" name="generatorId"
+               value="${instance.generatorId != null ? instance.generatorId : descriptor.getNewGeneratorId()}"></input>
+    </f:invisibleEntry>
+    <!-- End block directly copied from LoadGenerator because apparently Jelly doesn't believe in inheritance -->
+
+
     <f:entry field="jobNameRegex" title="${%Regex used to select matching jobs}">
         <f:textbox/>
     </f:entry>

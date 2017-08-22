@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form">
+    <!-- This is maintained as a baseline for inheriting plugins because apparently
+     Jelly inheritance is a rathole of terror so we can't just st:include it -->
+
     <f:entry field="shortName" title="${%Unique short name for the generator}"
              description="Unique string to name the generator, also used in APIs">
         <f:textbox/>

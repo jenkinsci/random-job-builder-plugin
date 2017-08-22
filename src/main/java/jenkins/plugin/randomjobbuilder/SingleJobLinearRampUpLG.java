@@ -188,7 +188,7 @@ public class SingleJobLinearRampUpLG extends LoadGenerator {
     @Extension
     public static class DescriptorImpl extends DescriptorBase {
         /**
-         * Provides autocompletion for the job name fiesld
+         * Provides autocompletion for the jobName when looking up jobs
          * @param value
          *      The text that the user entered.
          */

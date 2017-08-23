@@ -3,7 +3,7 @@
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler"  xmlns:f="/lib/form">
     <st:include page="base-config.jelly" class="${descriptor.clazz}"/>
 
-    <f:entry field="rampUpMillis" title="Time to ramp up, or -1 for immediate">
+    <f:entry field="rampUpMillis" title="Time to ramp up in millis, or -1 for immediate">
         <f:number/>
     </f:entry>
     <f:entry field="useJitter" title="Add randomness to job starting rate" description="On average starts right number of runs, but can be between 0 and 2x expected">

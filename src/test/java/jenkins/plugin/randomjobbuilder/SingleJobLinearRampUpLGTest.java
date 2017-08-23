@@ -13,7 +13,12 @@ public class SingleJobLinearRampUpLGTest {
 
     @Test
     public void testLoadCalculation() throws Exception {
-        SingleJobLinearRampUpLG.LoadCalculator calc = new SingleJobLinearRampUpLG.LoadCalculator(5, 1000L, 0, false);
+        SingleJobLinearRampUpLG.LoadCalculator calc = new SingleJobLinearRampUpLG.LoadCalculator(10, 1000L, 0, false);
+
+        // Once ramp-up is done, we need to
+        Assert.assertEquals(10, calc.computeDesiredRuns(2000L));
+        Assert.assertEquals(2, calc.computeDesiredRuns(200L));
+        Assert.assertEquals(4, calc.computeDesiredRuns(400L));
 
         // No ramp-up, no jitter, just return enough runs to bring up to the expected val
         calc.finalConcurrentLoad = 37;
@@ -44,6 +49,8 @@ public class SingleJobLinearRampUpLGTest {
         Assert.assertEquals(0, calc.computeDesiredRuns(-50));
         Assert.assertEquals(50, calc.computeDesiredRuns(500));
         Assert.assertEquals(25, calc.computeDesiredRuns(250));
+        Assert.assertEquals(25, calc.computeRunsToLaunch(250, 0));
+        Assert.assertEquals(15, calc.computeRunsToLaunch(250, 10));
         Assert.assertEquals(100, calc.computeDesiredRuns(99999));
         Assert.assertEquals(100, calc.computeRunsToLaunch(99999,0));
 

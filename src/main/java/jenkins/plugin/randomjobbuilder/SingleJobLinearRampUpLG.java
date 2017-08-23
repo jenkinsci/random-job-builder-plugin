@@ -106,6 +106,9 @@ public class SingleJobLinearRampUpLG extends LoadGenerator {
         if (this.getLoadTestMode() == LoadTestMode.IDLE || this.getLoadTestMode() == LoadTestMode.RAMP_DOWN) {
             LoadCalculator calc = getCalculator();
             calc.startTimeMillis = System.currentTimeMillis();
+            calc.finalConcurrentLoad = this.getConcurrentRunCount();
+            calc.useJitter = this.useJitter;
+            calc.rampUpMillis = this.rampUpMillis;
 
             // If we have no ramp-up time, then ramp up immediately
             return (this.rampUpMillis > 0) ? LoadTestMode.RAMP_UP : LoadTestMode.LOAD_TEST;
@@ -146,7 +149,6 @@ public class SingleJobLinearRampUpLG extends LoadGenerator {
         LoadCalculator calc = getCalculator();
         long time = System.currentTimeMillis();
         if (time > (this.calculator.startTimeMillis+rampUpMillis)) {
-            // Already at peak
             if (this.getLoadTestMode() != LoadTestMode.LOAD_TEST) {
                 // Engines already at full speed cap'n I canna go any faster
                 setLoadTestMode(LoadTestMode.LOAD_TEST);

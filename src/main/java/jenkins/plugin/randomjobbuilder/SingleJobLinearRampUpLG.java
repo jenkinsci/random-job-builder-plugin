@@ -28,12 +28,13 @@ public class SingleJobLinearRampUpLG extends LoadGenerator {
 
     private transient LoadCalculator calculator = new LoadCalculator(concurrentRunCount, rampUpMillis, 0, useJitter);
 
+    private transient long startTimeMillis = 0;
+
     @Exported
     public String getJobName() {
         return jobName;
     }
 
-    @DataBoundSetter
     public void setJobName(String jobName) {
         this.jobName = jobName;
     }
@@ -104,8 +105,9 @@ public class SingleJobLinearRampUpLG extends LoadGenerator {
     @Override
     protected LoadTestMode startInternal() {
         if (this.getLoadTestMode() == LoadTestMode.IDLE || this.getLoadTestMode() == LoadTestMode.RAMP_DOWN) {
+            this.startTimeMillis = System.currentTimeMillis();
             LoadCalculator calc = getCalculator();
-            calc.startTimeMillis = System.currentTimeMillis();
+            calc.startTimeMillis = this.startTimeMillis;
             calc.finalConcurrentLoad = this.getConcurrentRunCount();
             calc.useJitter = this.useJitter;
             calc.rampUpMillis = this.rampUpMillis;
@@ -146,20 +148,26 @@ public class SingleJobLinearRampUpLG extends LoadGenerator {
         if (!isActive()) {
             return 0;
         }
+
         LoadCalculator calc = getCalculator();
+        calc.startTimeMillis = this.startTimeMillis;
+        calc.finalConcurrentLoad = this.concurrentRunCount;
+        calc.rampUpMillis = this.rampUpMillis;
+        calc.useJitter = this.useJitter;
+
         long time = System.currentTimeMillis();
-        if (time > (this.calculator.startTimeMillis+rampUpMillis)) {
+        if (time > (calc.startTimeMillis+calc.rampUpMillis)) {
             if (this.getLoadTestMode() != LoadTestMode.LOAD_TEST) {
                 // Engines already at full speed cap'n I canna go any faster
                 setLoadTestMode(LoadTestMode.LOAD_TEST);
             }
         }
-        return calc.computeRunsToLaunch(System.currentTimeMillis(), currentRuns);
+        return calc.computeRunsToLaunch(time, currentRuns);
     }
 
     @DataBoundConstructor
-    public SingleJobLinearRampUpLG() {
-
+    public SingleJobLinearRampUpLG(String jobName) {
+        this.jobName = jobName;
     }
 
     @Exported

@@ -39,6 +39,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class GeneratorController extends RunListener<Run> {
     private boolean autostart = false;
 
+    public static final long RECURRENCE_PERIOD_MILLIS = 2000L;
+
     ConcurrentHashMap<String, LoadGenerator> registeredGenerators = new ConcurrentHashMap<String, LoadGenerator>();
 
     /** Map {@link LoadGenerator#generatorId} to that LoadGenerator's queued item count */
@@ -354,7 +356,7 @@ public final class GeneratorController extends RunListener<Run> {
 
         @Override
         public long getRecurrencePeriod() {
-            return 2000L;
+            return RECURRENCE_PERIOD_MILLIS;
         }
 
         @Override

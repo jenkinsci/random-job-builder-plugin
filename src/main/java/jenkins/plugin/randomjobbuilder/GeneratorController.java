@@ -12,8 +12,6 @@ import hudson.model.listeners.RunListener;
 import hudson.security.ACL;
 import jenkins.model.Jenkins;
 import org.acegisecurity.context.SecurityContext;
-import org.kohsuke.accmod.Restricted;
-import org.kohsuke.accmod.restrictions.NoExternalUse;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
@@ -37,12 +35,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * </ul>
  *
  */
-@Restricted(NoExternalUse.class)
 @Extension
-public class GeneratorController extends RunListener<Run> {
+public final class GeneratorController extends RunListener<Run> {
     private boolean autostart = false;
 
-    // FIXME the accounting for tasks is broken, sometimes it overcounts, sometimes it undercounts.
+    public static final long RECURRENCE_PERIOD_MILLIS = 2000L;
+
     ConcurrentHashMap<String, LoadGenerator> registeredGenerators = new ConcurrentHashMap<String, LoadGenerator>();
 
     /** Map {@link LoadGenerator#generatorId} to that LoadGenerator's queued item count */
@@ -57,11 +55,14 @@ public class GeneratorController extends RunListener<Run> {
      *   Eventually we'll just use {@link ReconfigurableDescribable} for direct updates of generator lists.
      *   @param generator Generator to register/update
      */
-    public void registerOrUpdateGenerator(@Nonnull LoadGenerator generator) {
+     void registerOrUpdateGenerator(@Nonnull LoadGenerator generator) {
         LoadGenerator previous = registeredGenerators.put(generator.getGeneratorId(), generator);
         synchronized (generator) {
             if (previous != null) {  // Copy some transitory state in, but honestly this is a hack
+                GeneratorControllerListener.fireGeneratorReconfigured(previous, generator);
                 generator.copyStateFrom(previous);
+            } else {
+                GeneratorControllerListener.fireGeneratorAdded(generator);
             }
         }
     }
@@ -75,11 +76,12 @@ public class GeneratorController extends RunListener<Run> {
      * Unregister the generator and stop all jobs and tasks from it
      * @param generator Generator to unregister/remove
      */
-    public void unregisterAndStopGenerator(@Nonnull LoadGenerator generator) {
+    void unregisterAndStopGenerator(@Nonnull LoadGenerator generator) {
         synchronized (generator) {
             generator.stop();
             this.stopAbruptly(generator);
             registeredGenerators.remove(generator.getGeneratorId());
+            GeneratorControllerListener.fireGeneratorRemoved(generator);
         }
     }
 
@@ -108,7 +110,7 @@ public class GeneratorController extends RunListener<Run> {
      *  which will kill any jobs or tasks linked to them
      *  @param generators List of generators to add/remove/update
      */
-    public synchronized void syncGenerators(@Nonnull List<LoadGenerator> generators) {
+     synchronized void syncGenerators(@Nonnull List<LoadGenerator> generators) {
         Set<LoadGenerator> registeredSet = new HashSet<LoadGenerator>(registeredGenerators.values());
         Set<LoadGenerator> inputSet = new HashSet<LoadGenerator>(generators);
 
@@ -209,7 +211,7 @@ public class GeneratorController extends RunListener<Run> {
     /** Sum of both queued and actively running runs for the given generator
      * @param gen
      */
-    int getQueuedAndRunningCount(@Nonnull LoadGenerator gen) {
+    public int getQueuedAndRunningCount(@Nonnull LoadGenerator gen) {
         synchronized (gen) {
             AtomicInteger val = queueTaskCount.get(gen.getGeneratorId());
             int count = (val != null) ? val.get() : 0;
@@ -354,7 +356,7 @@ public class GeneratorController extends RunListener<Run> {
 
         @Override
         public long getRecurrencePeriod() {
-            return 2000L;
+            return RECURRENCE_PERIOD_MILLIS;
         }
 
         @Override

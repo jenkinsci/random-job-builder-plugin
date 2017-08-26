@@ -23,7 +23,6 @@ import java.util.UUID;
 
 /** Base for all load generators that run jobs */
 @ExportedBean
-@Restricted(NoExternalUse.class) // Until the APIs are more rigidly defined
 public abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerator> implements ExtensionPoint {
     /** Identifies the generator for causes */
     @Nonnull
@@ -37,7 +36,7 @@ public abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerato
     @CheckForNull
     String description;
 
-    protected LoadTestMode loadTestMode = LoadTestMode.IDLE;
+    private LoadTestMode loadTestMode = LoadTestMode.IDLE;
 
 
     @Exported
@@ -111,12 +110,7 @@ public abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerato
     /** Given current number of runs, launch more if needed.  Return number to fire now, or &lt;= 0 for none
      *  This allows for ramp-up behavior.
      */
-    public int getRunsToLaunch(int currentRuns) {
-        if (isActive() && getConcurrentRunCount() > 0) {
-            return getConcurrentRunCount()-currentRuns;
-        }
-        return 0;
-    }
+    public abstract int getRunsToLaunch(int currentRuns);
 
     /** Copy over internal state information from a newly configured instance of the same {@link LoadGenerator} type.
      *  This is to allow users to reconfigure load generators on the fly without removing and recreating them.
@@ -131,25 +125,39 @@ public abstract class LoadGenerator extends AbstractDescribableImpl<LoadGenerato
 
     public abstract List<Job> getCandidateJobs();
 
-    /** Begin running load test and then switch to full load
+    /** Begin running load test and then switch to full load after any ramp-up time, firing {@link GeneratorControllerListener#onGeneratorStarted(LoadGenerator)}
+     *  Implementations should provide logic for this in {@link #startInternal()}
      *  @return {@link LoadTestMode} phase as we transition to starting load test, i.e. LOAD_TEST or RAMP_UP
      */
-    public abstract LoadTestMode start();
+    public final LoadTestMode start() {
+        GeneratorControllerListener.fireGeneratorStarted(this);
+        LoadTestMode lt = startInternal();
+        setLoadTestMode(lt);
+        return lt;
+    }
+
+    /** Provide the actual implementation of state change in the start method and return new state */
+    protected abstract LoadTestMode startInternal();
 
     /**
-     * Start shutting down the load test and then stop it
+     * Start shutting down the load test and then stop it after ramp-down, firing {@link GeneratorControllerListener#onGeneratorStopped(LoadGenerator)} (LoadGenerator)}
+     *  Implementations should provide logic for this in {@link #stopInternal()}
      * @return {@link LoadTestMode} as we transition to shutting load load test, i.e. RAMP_DOWN or IDLE
      */
-    public abstract LoadTestMode stop();
+    public final LoadTestMode stop() {
+        GeneratorControllerListener.fireGeneratorStopped(this);
+        LoadTestMode lt = stopInternal();
+        setLoadTestMode(lt);
+        return lt;
+    }
 
-    // TODO some sort of API for how to shut down jobs and how fast?
+    /** Between this and the getter, this may be used to trigger events on change */
+    protected void setLoadTestMode(LoadTestMode testMode) {
+        this.loadTestMode = testMode;
+    }
 
-    /**
-     * Get the intended number of concurrent runs at once
-     * @return &lt; 0 or (or negative) will result in no runs triggered, or positive integer for intended count
-     */
-    @Exported
-    public abstract int getConcurrentRunCount();
+    /** Provide the actual implementation of state change in the stop method and return new state */
+    protected abstract LoadTestMode stopInternal();
 
     /** Descriptors neeed to extend this */
     @Extension

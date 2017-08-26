@@ -3,7 +3,14 @@
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler"  xmlns:f="/lib/form">
     <st:include page="base-config.jelly" class="${descriptor.clazz}"/>
 
-    <f:entry field="jobNameRegex" title="${%Regex used to select matching jobs}">
+    <f:entry field="rampUpMillis" title="Time to ramp up in millis, or -1 for immediate">
+        <f:number/>
+    </f:entry>
+    <f:entry field="useJitter" title="Add randomness to job starting rate" description="On average starts right number of runs, but can be between 0 and 2x expected">
+        <f:checkbox/>
+    </f:entry>
+
+    <f:entry field="jobName" title="${%Name of job to run}">
         <f:textbox/>
     </f:entry>
     <f:entry field="concurrentRunCount" title="${%Concurrent Runs}"

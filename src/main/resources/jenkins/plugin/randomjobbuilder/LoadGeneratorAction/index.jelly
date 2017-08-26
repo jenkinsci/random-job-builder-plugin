@@ -26,6 +26,7 @@
                     <th>
                         ${%Description}
                     </th>
+                    <!-- Consider an alternative since not all generators may have this -->
                     <th>
                         ${%Concurrent Runs Goal}
                     </th>

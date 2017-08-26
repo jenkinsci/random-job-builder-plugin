@@ -194,6 +194,8 @@ public class LoadGeneration extends AbstractDescribableImpl<LoadGeneration>  {
     static Job pickRandomJob(@Nonnull List<Job> candidates) {
         if (candidates.size() == 0) {
             return null;
+        } else if (candidates.size() == 1) {
+            return candidates.get(0);
         }
         return candidates.get(rand.nextInt(candidates.size()));
     }

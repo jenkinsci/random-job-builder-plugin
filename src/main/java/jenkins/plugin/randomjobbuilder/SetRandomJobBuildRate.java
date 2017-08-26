@@ -22,7 +22,7 @@ public class SetRandomJobBuildRate extends CLICommand {
     @Override
     protected int run() throws Exception {
         RandomJobBuilder.DescriptorImpl d =
-                Jenkins.getInstance().getDescriptorByType(RandomJobBuilder.DescriptorImpl.class);
+                Jenkins.getActiveInstance().getDescriptorByType(RandomJobBuilder.DescriptorImpl.class);
         d.setBuildsPerMin(buildsPerMinute == null ? 0 : buildsPerMinute);
         return 0;
     }

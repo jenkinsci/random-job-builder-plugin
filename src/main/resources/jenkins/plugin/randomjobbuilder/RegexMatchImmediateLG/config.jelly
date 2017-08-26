@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler"  xmlns:f="/lib/form">
+    <st:include page="base-config.jelly" class="${descriptor.clazz}"/>
+
+    <f:entry field="jobNameRegex" title="${%Regex used to select matching jobs}">
+        <f:textbox/>
+    </f:entry>
+    <f:entry field="concurrentRunCount" title="${%Concurrent Runs}"
+             description="Target number of concurrent runs (or queue tasks) to maintain for THIS generator ONLY">
+        <f:number/>
+    </f:entry>
+</j:jelly>

@@ -1,6 +1,15 @@
 # Jenkins Random Job Builder Plugin
 
-This plugin will build jobs randomly at a specified average rate.
+This plugin will offer the ability to run jobs to generate load on a Jenkins master. 
+
+It is useful for load-testing with jobs.  
+
+There are two modes: 
+
+* Random Builder (see the Manage Jenkins > Configure page) - randomly selects jobs and builds them at a specified average rate
+* LoadGenerator - individual, named load generators that will select and run sets of jobs with specific concurrency
+    - Generators are configured in the Manage Jenkins > Configure page
+    - There's a controller than enables/disable generators and overall autostart (see the LoadGenerator link in the left sidepanel)
 
 # Environment
 

@@ -69,7 +69,7 @@ public class RandomJobBuilder extends AbstractDescribableImpl<RandomJobBuilder> 
 
         @Override
         protected void doRun() throws Exception {
-            DescriptorImpl d = Jenkins.getInstance().getDescriptorByType(DescriptorImpl.class);
+            DescriptorImpl d = Jenkins.getActiveInstance().getDescriptorByType(DescriptorImpl.class);
             if (d.getBuildsPerMin() <= 0) {
                 lastTime = System.currentTimeMillis();
                 return;
@@ -89,7 +89,7 @@ public class RandomJobBuilder extends AbstractDescribableImpl<RandomJobBuilder> 
         private boolean startBuild() {
             SecurityContext context = ACL.impersonate(ACL.SYSTEM);
             try {
-                ItemGroup<? extends Item> group = Jenkins.getInstance();
+                ItemGroup<? extends Item> group = Jenkins.getActiveInstance();
                 if (group.getItems().isEmpty()) {
                     return false;
                 }

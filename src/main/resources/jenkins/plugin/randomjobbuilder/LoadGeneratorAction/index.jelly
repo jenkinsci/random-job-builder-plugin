@@ -1,0 +1,63 @@
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form" xmlns:i="jelly:fmt">
+    <l:layout title="${it.displayName}">
+        <st:include it="${it.context}" page="sidepanel.jelly"/>
+        <l:main-panel>
+            <h1>Load Generator Controller</h1>
+            <f:section title="Global Autostart">
+                <!-- Toggle autostart on/off -->
+                <form method="post" action="autostart?autostartState=${!it.controller.autostart}">
+                    <f:submit value="Autostart: ${it.controller.autostart}"></f:submit>
+                </form>
+            </f:section>
+            <br/>
+
+            <f:section title="Individual Generators">
+                <a href="${it.getRootUrl()}configure">See configuration section for Load Generators</a>
+                <p/>
+                <table class="sortable pane bigtable">
+                <tr style="border-top: 0px;">
+                    <th>
+                        ${%Active}
+                    </th>
+                    <th width="20%" initialsortdir="down">
+                        ${%Name}
+                    </th>
+                    <th>
+                        ${%Description}
+                    </th>
+                    <!-- Consider an alternative since not all generators may have this -->
+                    <th>
+                        ${%Concurrent Runs Goal}
+                    </th>
+                    <th>
+                        ${%Filter}
+                    </th>
+                    <th>
+                        ${%Currently Queued}
+                    </th>
+                    <th>
+                        ${%Currently Running}
+                    </th>
+                </tr>
+                <j:forEach var="gen" items="${it.controller.registeredGenerators}">
+                    <tr>
+                        <td>
+                            <!-- Prettier: try  HTML/CSS switch per https://www.w3schools.com/howto/howto_css_switch.asp -->
+                            <form method="post" action="toggleGenerator?generatorId=${gen.generatorId}">
+                                <f:submit value="Active: ${gen.active}"></f:submit>
+                            </form>
+                        </td>
+                        <td>${gen.shortName}</td>
+                        <td>${gen.description}</td>
+                        <td>${gen.concurrentRunCount}</td>
+                        <td>${gen.jobNameRegex}</td>
+                        <td>${it.controller.getQueuedCount(gen)}</td>
+                        <td>${it.controller.getRunningCount(gen)}</td>
+                    </tr>
+                </j:forEach>
+                </table>
+            </f:section>
+        </l:main-panel>
+    </l:layout>
+</j:jelly>
